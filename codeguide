@@ -1,0 +1,16 @@
+function annotation:(mozilla/toolkit/components/places/History.cpp)
+215 /**
+216  * Obtains an nsIURI from the "uri" property of a JSObject.
+217  *
+218  * @param aCtx
+219  *        The JSContext for aObject.
+220  * @param aObject
+221  *        The JSObject to get the URI from.
+222  * @param aProperty
+223  *        The name of the property to get the URI from.
+224  * @return the URI if it exists.*none for void return*
+225  */
+226 already_AddRefed<nsIURI>
+227 GetURIFromJSObject(JSContext* aCtx,
+228                    JSObject* aObject,
+229                    const char* aProperty)

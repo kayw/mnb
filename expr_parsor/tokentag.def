@@ -1,0 +1,80 @@
+#ifndef TOK
+#define TOK(X)
+#endif
+#ifndef PUNCTUATOR
+#define PUNCTUATOR(X,Y) TOK(X)
+#endif
+#ifndef KEYWORD
+#define KEYWORD(X, Y) TOK(kw_ #X)
+#endif
+#ifndef OPERATOR_ALIAS
+#define OPERATOR_ALIAS(X, Y)
+#endif
+#ifndef BUILTIN
+#define BUILTIN(ID, TYPE)
+#endif
+TOK(unknown)
+TOK(numeric)
+TOK(real_const)
+TOK(identifer)
+
+PUNCTUATOR(l_square,            "[") 
+PUNCTUATOR(r_square,            "]")
+PUNCTUATOR(l_paren,             "(")
+PUNCTUATOR(r_paren,             ")")
+PUNCTUATOR(l_brace,             "{")
+PUNCTUATOR(r_brace,             "}")
+PUNCTUATOR(amp,                 "&")
+PUNCTUATOR(ampamp,              "&&")
+PUNCTUATOR(star,                "*")
+PUNCTUATOR(percent,		"%")
+PUNCTUATOR(plus,                "+")
+PUNCTUATOR(minus,               "-")
+PUNCTUATOR(tilde,               "~")
+PUNCTUATOR(exclaimequal,        "!=")
+PUNCTUATOR(less,                "<")
+PUNCTUATOR(lessless,            "<<")
+PUNCTUATOR(lessequal,           "<=")
+PUNCTUATOR(lessgreater,		"<>")
+PUNCTUATOR(greater,             ">")
+PUNCTUATOR(greatergreater,      ">>")
+PUNCTUATOR(greaterequal,        ">=")
+PUNCTUATOR(slash,		"/")
+PUNCTUATOR(pipe,                "|")
+PUNCTUATOR(pipepipe,            "||")
+PUNCTUATOR(semi,                ";")
+PUNCTUATOR(equal,		"=")
+PUNCTUATOR(caret,		"^")
+PUNCTUATOR(comma,		",")
+PUNCTUATOR(equalequal,		"==")
+
+KEYWORD(ON, 	BOOL)
+KEYWORD(OFF, 	BOOL)
+KEYWORD(TRUE, 	BOOL)
+KEYWORD(FALSE, 	BOOL)
+/***********NAME  SIGNED BYTES KIND*****/
+TYPEKEYWORD(BOOL,  1, 1, 1)
+TYPEKEYWORD(SINT,  1, 2, 2)
+TYPEKEYWORD(USINT, 0, 2, 2)
+TYPEKEYWORD(INT,   1, 4, 2)
+TYPEKEYWORD(UINT,  0, 4, 2)
+TYPEKEYWORD(DINT,  1, 4, 2)
+TYPEKEYWORD(UDINT, 0, 4, 2)
+TYPEKEYWORD(REAL,  1, 4, 3) 
+
+OPERATOR_ALIAS(NOT, tilde)
+OPERATOR_ALIAS(MOD, percent)
+OPERATOR_ALIAS(XOR, caret)
+OPERATOR_ALIAS(AND, ampamp)
+OPERATOR_ALIAS(OR,  pipepipe)
+
+BUILTIN(SIN, 	"dd")
+BUILTIN(COS, 	"dd")
+BUILTIN(TG, 	"dd")
+BUILTIN(CTG, 	"dd")
+BUILTIN(LOG, 	"dd")
+BUILTIN(POW, 	"iii")
+BUILTIN(MAX, 	"iii")
+BUILTIN(MIN, 	"iii")
+BUILTIN(ABS, 	"dd")
+BUILTIN(SQRT, 	"dd")
