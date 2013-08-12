@@ -21,15 +21,19 @@ class Parser{
 //    kBuiltinCalls = 13, // sin
   };
 
-  Parser(Lexer l){
-    lexer_ = l;
+  Parser(Lexer l)
+    :lexer_(l)
+    ,lookahead_(NULL){
+    //lexer_ = l;
     ConsumeToken();// prime token
   }
   void ConsumeToken(){
+    if(lookahead_)
+      lookahead_->release();
     lookahead_ = lexer_.scan();
   }
-  Token nextLookAheadToken(int aheadNum){
-    Token tmp;
+  Token nextLookAheadToken(int aheadNum) {
+    Token* tmp;
     for (int i = 0; i < aheadNum; ++i){
       tmp = lexer_.scan();
       cachedLookAheads_.push_back(tmp);
@@ -47,8 +51,9 @@ class Parser{
 
   private:
   Sematic sema_;
-  Token lookahead_;
-  std::vector<Token> cachedLookAheads_;
+  ErrorReporter Er_;
+  Token* lookahead_;
+  std::vector<Token*> cachedLookAheads_;
   IdentifierTable symbol_table_;
   //ExprResult parseExpression(){
   //  decls();

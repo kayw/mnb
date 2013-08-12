@@ -5,11 +5,11 @@ ExprResult Parser::ParseExpression(){
     parseDeclarator();
   }
   else{
-    Expr lhs(parseAssignment() );
+    ExprResult lhs(parseAssignment() );
     return parseBinaryExprRHS(lhs, kAssign);
   }
 }
-void Parser::parseDeclarator(){
+void Parser::parseDeclarator() {
   QualType T = parseDeclSpecifier();
   if (lookahead_.is(Token::identifer) ){
     IdentifierInfo* pII = lookahead_.getIdentifierInfo();
@@ -23,10 +23,11 @@ void Parser::parseDeclarator(){
       else
         break;
     }
-    VarDecl* decl = sema_.analyzeDeclartor(D);
+    VarDecl* decl = sema_.analyzeDeclarator(D);
+    assert(decl);
     if (lookahead_.is(Token::equal) ){
       ConsumeToken();
-      ExprNode* initialier(ParseInitializer() );
+      ExprResult initialier(parseInitializer() );
       if (initialier.isInvalid() ) {
         skipUntil(Token::comma);
       }
@@ -38,12 +39,14 @@ void Parser::parseDeclarator(){
       sema_.actOnUninitializedDecl(decl);
     }
     else{
-      //diag assert(false && "no semi or equal sign after declarator");
+      errorReport.diagnose(getColumn(), "no semi or equal sign for declarator") << decl->getName();
+      //diag assert(false && ");
+      
     }
-    declGroupMap.insert(pII, decl);
   }
   else{
     // diag
+      errorReport.diagnose(getColumn(), "not identifer found after decl specifier") << T->getName();
   }
 }
 
@@ -62,13 +65,13 @@ void Parser::parseBracketDeclarator(Declarator& D, const QualType T){
     D.addTypeInfo(D.createArrayChunk(idxNode) );
   }
   else{
-    //diag
+    errorReport.diagnose(getColumn(), "Syntax error after ") << D.;
     skipUntil(Token::r_square);
   }
 }
 
-ExprNode* Parser::parseInitializer(){
-  if (lookahead_.isNot(Token::l_brace) {
+ExprResult Parser::parseInitializer(){
+  if (lookahead_.isNot(Token::l_brace) ) {
     return parseAssignment();
   }
   else{
@@ -76,18 +79,22 @@ ExprNode* Parser::parseInitializer(){
   }
 }
 
-ExprNode* Parser::parseBraceInitialier(){
+ExprResult Parser::parseBraceInitialier(){
   ExprNode* subElt;
   bool initExprOK = true;
-  std::vector<ExprNode> InitExprVec;
+  std::vector<ExprNode*> InitExprVec;
   while(1){
-    subElt = parseInitializer();
+    subElt = parseInitializer().get();
     if (!subElt.isInvalid() ) {
       initExprOK = false;
       if (lookahead_.isNot(Token::comma)) {
         skipUntil(Token::r_brace);
         break;
       }
+    }
+    else if (subElt.getExprClass() == kInitExprsClass) {
+      diag
+        break;
     }
     else{
       InitExprVec.push_back(subElt);
@@ -120,18 +127,16 @@ ExprResult parseAssignment(){
     case Token::l_paren:
       res = parseParenExpression();
       break;
-    case Token::numeric:
-      res = sema_.analyzeConstantNumeric(lookahead);
-      ConsumeToken();
-      return res;// break;
+    case Token::numeric: case Token::real_const:
     case Token::kw_TRUE: case Token::kw_ON:
     case Token::kw_FALSE: case Token::kw_OFF:
-      res = sema_.analyzeLiteralBool(lookahead_);
+      res = sema_.analyzeConstantLiteral(lookahead_);
+      ConsumeToken();
       return res;
     case Token::identifer:
       IdentifierInfo* pii = lookahead_.getIdentifierInfo();
       ConsumeToken();
-      res = sema_.analyzeIdentifier(pii);
+      res = sema_.analyzeIdentifier(pii);//builtincallid
       break;
     case Token::tilde: case Token::minus:
       Token opTok = lookahead_;
@@ -141,19 +146,20 @@ ExprResult parseAssignment(){
         res = sema_.analyzeUnaryOperator(opTok,res);
       return res.move(); 
     default:
-      if (lookahead_.isBuiltinCall() ){
-        res = analyzeBuiltinCallID(lookahead_);//new BuiltinIdentifier(lookahead_.getIdentifierInfo() );
-        break;
-      }
+      //if (lookahead_.isBuiltinCall() ){
+      //  res = analyzeBuiltinCallID(lookahead_);//new BuiltinIdentifier(lookahead_.getIdentifierInfo() );
+      //  break;
+      //}
       return ExprError();
   }
   return parsePostfixSuffix(res);
 }
+
 ExprResult parseParenExpression(){
   consumeParen();
   ExprResult res = parseAssignment();
   if (!res.isInvalid() && lookahead_.is(Token::r_paren) ) {
-    res = new ParenExpr(res);
+    res = new ParenExpr(res); //todo
   }
   if (res.isInvalid() ){
     skipUntil(Token::r_paren);
@@ -162,10 +168,11 @@ ExprResult parseParenExpression(){
   matchRHSPunct(Token::r_paren);
   return res.move();
 }
+
 ExprResult parsePostfixSuffix(ExprResult Lhs){
   while(1){
     switch(lookahead_.getKind() ){
-      case Token::l_brace:
+      case Token::l_square:
         ConsumeBracket();
         ExprResult idx = parseAssignment();
         if (!Lhs.isInvalid() && !idx.isInvalid() && lookahead_.is(Token::r_square) ) {
@@ -188,7 +195,7 @@ ExprResult parsePostfixSuffix(ExprResult Lhs){
           Lhs = ExprError();
         }
         else{
-          Lhs = sema_.analyzeBuiltinCallExpr(args, Lhs);
+          Lhs = sema_.analyzeBuiltinCallExpr(Lhs, args);
           consumeParen();
         }
         break;

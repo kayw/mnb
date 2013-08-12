@@ -24,6 +24,7 @@ void IdentifierTable::addKeyword(const string& id, Token::TokenTag tag){
   IdentifierInfo* pIdi = lookupIdentifier(id);
   pIdi->tag_ = tag;
 }
+
 IdentifierInfo* IdentifierTable::lookupIdentifier( const string& id ){
   hashmap::const_iterator cit = IdentifierInfoMap_.find(id);
   if (cit != IdentifierInfoMap_.end() ) {
@@ -60,5 +61,11 @@ void IdentifierTable::initializeBuiltinIDs( const string& id, const string types
   BuiltinCallMap_[pIDi] = pBinf;
 }
 
+BuiltinInfo* IdentifierTable::findBuiltinIDInfo(const Token::TokenTag tag){
+    if(BuiltinCallMap_.find(tag) != BuiltinCallMap_.end() )
+      return BuiltinCallMap_[tag];
+    else
+      return NULL;
+}
 }
 }

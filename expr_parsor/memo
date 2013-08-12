@@ -1,0 +1,11 @@
+//vardecl  exprnode exprclass
+InitExprs ArraySubscriptExpr
+isConstantZero ExprResult
+
+Owned(ExprResult) ExprResult.move ExprNode* organize
+Diagnose how errorreporter
+location tip
+
+
+
+builtinid -> polymorphic loader

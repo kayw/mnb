@@ -1,9 +1,10 @@
 namespace mnb{
 namespace expr{
-void Lexer::scan(Token& tok){
+Token* Lexer::scan(){
   const char* curPtr = bufferPtr_;
   for (; curPtr == ' ' || curPtr == '\t'; ++curPtr)
     ;
+  tokenColumn_ = curPtr - bufferBegin_;
   char peek = advanceChar(curPtr);
   Token::TokenTag tag = Token::unknown;
   switch(peek){
@@ -127,7 +128,8 @@ Token* Lexer::lexNumericToken(const char* curPtr){//todo: check over under flow 
   if (ch == '.') {
     curPtr = consumeNextChar(curPtr);
     if (!isdigit(getNextChar(curPtr) ) {
-      errorReport.fill("no digits after float %d's dot", v);
+      //errorReport.fill("no digits after float %d's dot", v);
+      errorReport.diagnose(kFloatNoDigital, tokenColumn_) << v;
     }
     readNumeric(curPtr, ch, v);
   }
@@ -146,7 +148,7 @@ Token* Lexer::lexNumericToken(const char* curPtr){//todo: check over under flow 
   }
 }
 
-void readNumeric(const char* curPtr, char& peek, Integer& inital){
+void Lexer::readNumeric(const char* curPtr, char& peek, Integer& inital){
   char ch = getNextChar(curPtr);
   while(isdigit(ch) ){
     curPtr = consumeNextChar(curPtr);
@@ -156,7 +158,7 @@ void readNumeric(const char* curPtr, char& peek, Integer& inital){
   peek = ch;
 }
 
-exponent_t readExponent(const char* curPtr) {
+exponent_t Lexer::readExponent(const char* curPtr) {
   char ch = getNextChar(curPtr);
   int tooLargeExponent = 24000;
   bool isNegative = (ch == '-');
@@ -177,7 +179,7 @@ exponent_t readExponent(const char* curPtr) {
   return (isNegative ? -expon : expon);
 }
 
-Token* lexIdentifier(const char* curPtr){
+Token* Lexer::lexIdentifier(const char* curPtr){
   unsigned char ch = *curPtr++;
   while(isalpha(ch) || ch == '_')
     ch = *curPtr++;

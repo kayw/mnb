@@ -1,9 +1,19 @@
 namespace mnb{
 namespace expr{
+enum OperatorKind{
+  kBOMul; kBODiv; kBORem; kBOAdd;
+  kBOSub; kBOShl; kBOShr; kBOLE;
+  kBOLT; kBOGE; kBOGT; kBONE;
+  kBOEQ; kBOBitAnd; kBOBitXor; kBOBitOr; 
+  kBOLAnd; kBOLOr; kBOAssign; kBOComma;
+  kUOPlus; kUOMinus; kUONot; kUOLNot; 
+};
+
 class Declarator{
   public:
     Declarator(QualType T, IdentifierInfo* pII)
-      : DeclType_(T){}
+      : DeclType_(T)
+      ,pIdInfo_(pII){}
     ~Declarator();
     struct DeclaratorChunk{
       enum{
@@ -26,8 +36,11 @@ class Declarator{
     int getTypeObjects(){
       return DeclInfo_.size();
     }
-    QualType getDeclType(){
+    QualType getDeclType() const {
       return DeclType_;
+    }
+    IdentifierInfo* getIdentifier() const {
+      return pIdInfo_;
     }
     DeclaratorChunk& getChunckObject(int idx){
       if (0 < idx && idx < DeclInfo_.size() )
@@ -35,6 +48,7 @@ class Declarator{
     };
 
   private:
+    IdentifierInfo* pIdInfo_;
     QualType DeclType_;
     std::vector<DeclaratorChunk> DeclInfo_;
 };
@@ -48,6 +62,12 @@ class Sematic{
     QualType getTypeInfoBy(const Declarator& D);
     QualType buildArrayType(QualType T, ExprNode* arraySize);
     ExprResult analyzeInitExprs(const std::vector<ExprNode>& initList);
+
+  private:
+    std::map<IdentifierInfo*, VarDecl*> declGroupMap_;
+    void Diag(int32_t diagid){
+      errorReport.diagnose(getColumn(), diagid);
+    }
 };
 }
 }
