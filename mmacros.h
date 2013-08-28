@@ -5,6 +5,11 @@
   TypeName(const TypeName&);               \
   void operator=(const TypeName&)
 
+#define SAFE_DELETE(P)  \
+  if (P){               \
+    delete P;           \
+    P = NULL;           \
+  }
 namespace mnb{
     template<class T> inline const T& max_t(const T& a, const T& b) {
         return a > b ? a:b;

@@ -45,9 +45,20 @@ class Parser{
     if (lookahead_.tag_ == t)
       ConsumeToken();
     else
-      error("Parser expect token " << getNameByTag(t) << ",but next token is " << getNameByTag(lookahead_.tag_) );
+      //error("Parser expect token " << getNameByTag(t) << ",but next token is " << getNameByTag(lookahead_.tag_) );
+      Diag(diag::err_expected_token) << t;
   }
-  void error(){}
+  void Diag(int32_t errid){
+    l.Diag(errid);
+  }
+
+  bool skipUntil(Token::TokenTag t){
+    while(lookahead_.isNot(t) && lookahead_.isNot(Token::unknown)){
+      ConsumeToken();
+    }
+    return lookahead_.is(t);
+  }
+
 
   private:
   Sematic sema_;

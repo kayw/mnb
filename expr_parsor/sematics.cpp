@@ -1,13 +1,15 @@
 #include "ast.h"
-using namespace mnb::expr;
+//using namespace mnb::expr;
 namespace mnb{
 namespace expr{
 ExprResult Owned(ExprNode* E){
   return E;
 }
+
 ExprResult ExprError(){
   return ExprResult(false);
 }
+
 VarDecl* Sematic::analyzeDeclarator(const Declarator& D){
   QualType t = getTypeInfoBy(D);
   VarDecl* decl = new VarDecl(t);
@@ -31,7 +33,7 @@ QualType Sematic::getTypeInfoBy(const Declarator& D){
 
 QualType Sematic::buildArrayType(QualType T, ExprNode* arraySize){
   if (!arraySize) {
-    errorReport.diagnose(getColumn(), Error::variable_size_array_not_supported);"variable size array isn't supported!");
+    Diag(diag::err_invalid_array_element_size);
     return T;
   }
   uint64_t constVal = arraySize.evaluate();
@@ -71,6 +73,8 @@ ExprResult Sematic::analyzeConstantLiteral(Token* pToken){
       return ExprResult(new Constant(true) );
     case Token::kw_FALSE: case Token::kw_OFF:
       return ExprResult(new Constant(false) );
+    default:
+      return ExprResult(false);
   }
 }
 
@@ -139,7 +143,7 @@ QualType Sematic::checkMultiplyDivOperands(
 
   // Check for division by zero.
   if (isDiv && rex.get()->isConstantZero() )
-    DiagRuntimeBehavior("The division is zero");//todo divider
+    Diag(diag::warn_division_by_zero);
 
   return compType;
 }
@@ -155,7 +159,7 @@ QualType Sematic::checkRemainderOperands(ExprResult& lex, ExprResult& rex){
 
   // Check for remainder by zero.
   if (rex.get()->isConstantZero() )
-    DiagRuntimeBehavior("The remainder is zero");
+    Diag(diag::warn_remainder_by_zero);
 
   return compType;
 }
@@ -255,7 +259,7 @@ QualType Sematic::checkBitwiseOperands(ExprResult &lex, ExprResult &rex, SourceL
   return invalidOperands(Loc, lex, rex);
 }
 
-inline QualType Sematic::checkLogicalOperands( // C99 6.5.[13,14]
+QualType Sematic::checkLogicalOperands( // C99 6.5.[13,14]
   ExprResult &lex, ExprResult &rex, SourceLocation Loc, unsigned Opc) {
   
   // Diagnose cases where the user write a logical and/or but probably meant a
@@ -379,40 +383,15 @@ QualType Sematic::arithmeticConversion(ExprResult& lhsExpr, ExprResult& rhsExpr)
 
 QualType Sematic::invalidOperands(SourceLocation Loc, ExprResult &lex,
                                ExprResult &rex) {
-  Diag(error::err_typecheck_invalid_operands)
+  Diag(diag::err_typecheck_invalid_operands)
     << lex.get()->getType() << rex.get()->getType();
-//    << lex.get()->getSourceRange() << rex.get()->getSourceRange();
- // errorReport.diagnose(getColumn(), "invalid operands for type" << lex().get()->getType() << rex().get()->getType() );
   return QualType();
-}
-/// \brief Emit a diagnostic that describes an effect on the run-time behavior
-/// of the program being compiled.
-///
-/// This routine emits the given diagnostic when the code currently being
-/// type-checked is "potentially evaluated", meaning that there is a
-/// possibility that the code will actually be executable. Code in sizeof()
-/// expressions, code used only during overload resolution, etc., are not
-/// potentially evaluated. This routine will suppress such diagnostics or,
-/// in the absolutely nutty case of potentially potentially evaluated
-/// expressions (C++ typeid), queue the diagnostic to potentially emit it
-/// later.
-///
-/// This routine should be used for all diagnostics that describe the run-time
-/// behavior of a program, such as passing a non-POD value through an ellipsis.
-/// Failure to do so will likely result in spurious diagnostics or failures
-/// during overload resolution or within sizeof/alignof/typeof/typeid.
-bool Sema::DiagRuntimeBehavior(SourceLocation Loc, const Stmt *stmt,
-                               const PartialDiagnostic &PD) {//TODO
-    Diag(Loc, PD);
-      
-    errorReport.diagnose(getColumn(), PD);
-    return true;
 }
 
 void Sematic::diagnoseBadShiftValues(ExprResult &lex, ExprResult &rex,
                                    SourceLocation Loc, unsigned Opc,
                                    QualType LHSTy) {
-  llvm::APSInt Right;
+  //llvm::APSInt Right;
   QualType RHSTy = rex.get()->getQualType();
   // Check right/shifter operand
   if (!RHSTy->isIntegerType() )
@@ -420,20 +399,14 @@ void Sematic::diagnoseBadShiftValues(ExprResult &lex, ExprResult &rex,
 
   ExprValue eval = rex.get()->evaluate();
   if (eval.isNegative() ) {
-    //DiagRuntimeBehavior(Loc, rex.get(),
-    //                      S.PDiag(diag::warn_shift_negative)
-    //                        << rex.get()->getSourceRange());
-    Diag(error::warn_shift_negative);
+    Diag(diag::warn_shift_negative);
     return;
   }
   //llvm::APInt LeftBits(Right.getBitWidth(),
   //                     S.Context.getTypeSize(lex.get()->getType()));
   int32_t leftbits = lex.get()->getTypeWidth();
   if (eval.intVal.uintValue > leftbits){//Right.uge(LeftBits)) {
-    //S.DiagRuntimeBehavior(Loc, rex.get(),
-    //                      S.PDiag(diag::warn_shift_gt_typewidth)
-    //                        << rex.get()->getSourceRange());
-    Diag(error::warn_shift_gt_typewidth);
+    Diag(diag::warn_shift_gt_typewidth);
     return;
   }
   if (Opc != kBOShl)
@@ -446,12 +419,10 @@ void Sematic::diagnoseBadShiftValues(ExprResult &lex, ExprResult &rex,
   QualType LHSTy = lex.get()->getQualType();
   if (!LHSTy.isIntegerType() || !LHSTy->isSignedInteger())
     return;
-  //Diag(left shift operand less than zero);
   ExprValue leftvalue = lex.get()->evaluate();
   int32_t resultBits = eval.intVal.uintValue + leftvalue.getValidBits();
   if (leftbits < resultBits) //LeftBits.uge(ResultBits))
-    Diag(error::warn_shift_result_gt_typewidth) << resultBits << LHSTy << leftbits;
-    errorReport.diagnose(getColumn(), "shift result great than type width");
+    Diag(diag::warn_shift_result_gt_typewidth) << resultBits << LHSTy << leftbits;
   //if (leftbits == resultBits - 1) {
   //  S.Diag(Loc, diag::warn_shift_result_sets_sign_bit)
   //      << LHSTy
@@ -470,7 +441,7 @@ void Sematic::CheckArrayAccess(const ExprNode* expr) {
   const ExprNode* IndexExpr = expr->getIdx();
 
   const ConstantArrayType *ArrayTy =
-    Context.getAsConstantArrayType(BaseExpr->getType());
+    static_cast<ConstantArrayType>(BaseExpr->getQualType().get() );
   if (!ArrayTy)
     return;
 
@@ -489,22 +460,11 @@ void Sematic::CheckArrayAccess(const ExprNode* expr) {
     // commonly done e.g. in C++ iterators and range-based for loops.
     if (index.intVal.uintValue >= size)
       return;
-    //DiagID = diag::warn_array_index_exceeds_bounds;
-
-    //DiagRuntimeBehavior(BaseExpr->getLocStart(), BaseExpr,
-    //                    PDiag(DiagID) << index.toString(10, true)
-    //                      << size.toString(10, true)
-    //                      << (unsigned)size.getLimitedValue(~0U)
-    //                      << IndexExpr->getSourceRange());
-    Diag(error::warn_array_index_exceeds_bounds)<< index.toString(10, true)
+    Diag(diag::warn_array_index_exceeds_bounds)<< index.toString(10, true)
                           << size.toString(10, true)
                           << (unsigned)size.getLimitedValue(~0U);
   } else {
-    //unsigned DiagID = diag::warn_array_index_precedes_bounds;
-    //DiagRuntimeBehavior(BaseExpr->getLocStart(), BaseExpr,
-    //                    PDiag(DiagID) << index.toString(10, true)
-    //                      << IndexExpr->getSourceRange());
-    Diag(error::warn_array_index_precedes_bounds)<< index.toString(10, true);
+    Diag(diag::warn_array_index_precedes_bounds)<< index.toString(10, true);
   }
 
 }
@@ -525,18 +485,13 @@ Sematic::analyzeArraySubscript(ExprNode *Base, SourceLocation LLoc,
   if (LHSTy->isArrayElement()) {
     // C99 6.5.2.1p1
     if(!IndexExpr->getType()->isIntegerType() ) {
-      errorReport.diagnose(getColumn(), "Subscript isn't integer");
-      Diag(error::err_typecheck_subscript_not_integer);
+      Diag(diag::err_typecheck_subscript_not_integer);
       return ExprError();
-      //return ExprError(Diag(LLoc, diag::err_typecheck_subscript_not_integer)
-      //               << IndexExpr->getSourceRange());
     }
     ResultType = LHSExp->getType();
   } else {
-    errorReport.diagnose(getColumn(), "operand isn't array type");
-    Diag(error::err_typecheck_subscript_value);
-    return ExprError(Diag(LLoc, diag::err_typecheck_subscript_value)
-       << LHSExp->getSourceRange() << RHSExp->getSourceRange());
+    Diag(diag::err_typecheck_subscript_value);
+    return ExprError();
   }
   return Owned(new ArraySubscriptExpr(LHSExp, RHSExp, ResultType, RLoc));
 }
@@ -554,7 +509,7 @@ ExprResult Sematic::analyzeUnaryOperator(SourceLocation OpLoc, tok::TokenKind Ki
     if (resultType->isArithmeticType() ) 
       break;
 
-    Diag(error::err_typecheck_unary_expr) << resultType;
+    Diag(diag::err_typecheck_unary_expr) << resultType;
     return ExprError();
     //return ExprError(Diag(OpLoc, diag::err_typecheck_unary_expr)
     //  << resultType << Input.get()->getSourceRange());
@@ -566,10 +521,8 @@ ExprResult Sematic::analyzeUnaryOperator(SourceLocation OpLoc, tok::TokenKind Ki
     resultType = Input.get()->getType();
     if (!resultType->isBooleanType() ) {
       // C99 6.5.3.3p1: ok, fallthrough;
-      Diag(error::err_typecheck_unary_expr) << resultType;
+      Diag(diag::err_typecheck_unary_expr) << resultType;
       return ExprError();
-      //return ExprError(Diag(OpLoc, diag::err_typecheck_unary_expr)
-      //  << resultType << Input.get()->getSourceRange());
     }
     
     // LNot always has type int. C99 6.5.3.3p5.
@@ -610,7 +563,8 @@ ExprResult Sematic::analyzeBuiltinCallExpr(ExprResult& fnLhs, ExprVector& args){
   unsigned NumArgsInProto = FDecl->getProtoNumArgs();
 
   if (NumArgs != NumArgsInProto) {
-    errorReport.diagnose(getColumn(), "function arguments don't fit with builtin function definition");
+    //errorReport.diagnose(getColumn(), "function arguments don't fit with builtin function definition");
+    Diag(diag::err_function_argument_num_unfit);
     //Fn.release();
     return ExprError();
   }
@@ -632,7 +586,8 @@ ExprResult Sematic::parameterConversion(const ExprResult& Arg, const QualType& p
   QualType argType = retArg.get()->getQualType();
   CastKind ick = implicitCast(argType, protoType);
   if (ick == kCastIncompatible){
-    diag(argType not suitable for protoType);
+    //diag(argType not suitable for protoType);
+    Diag(diag::err_no_argument_conv)<<argType << protoType;
     return ExprError();
   } else if (ick != kCastNoOp){
     return createCastExprByType(retArg, protoType, ick);(sema.cpp)

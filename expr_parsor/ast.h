@@ -430,7 +430,7 @@ class QualType{
     Type *pType_;
 };
 
-class ConstArrayType{
+class ConstArrayType : public Type{
   public:
     ConstArrayType(QualType element, int32_t size);
     ~ConstArrayType();
@@ -630,6 +630,17 @@ class InitExprs: public ExprNode {
   private:
     std::vector<ExprNode*>& initNodes_;
 }
+
+class ParenExpr : public ExprNode {
+  public:
+    ParenExpr(ExprResult& exp)
+      :exp_(exp){}
+
+    ExprValue evaluate() { return exp_.get()->evaluate(); }
+
+  private:
+    ExprResult exp_;
+};
 
 class Logical : public ExprNode{
   public:

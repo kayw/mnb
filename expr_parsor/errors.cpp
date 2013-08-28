@@ -8,7 +8,7 @@ ErrorBuilder ErrorReport::diagnose(int errorCode, int startcolumn)
 
 void ErrorBuilder::emit(){
   std::cout << "Line: " << line_ << " Column: " << column_ << " Error Info: ";
-  std::string& msg_str = formatErrorMessage(errorId_);
+  std::string& msg_str = formatErrorMessage(diagId_);
   std::cout << msg_str << endline;
 }
 

@@ -29,31 +29,34 @@ void Parser::parseDeclarator() {
       ConsumeToken();
       ExprResult initialier(parseInitializer() );
       if (initialier.isInvalid() ) {
+        Diag(diag::err_expected_expression);
         skipUntil(Token::comma);
+        initialier = ExprError();
       }
       decl->setInitialier(initialier);
     }
-    else if (lookahead_.is(Token::semi){
+    else if (lookahead_.is(Token::semi)){
       ConsumeToken();
       //decl->setInitialier(0);
       sema_.actOnUninitializedDecl(decl);
     }
     else{
-      errorReport.diagnose(getColumn(), "no semi or equal sign for declarator") << decl->getName();
+      //errorReport.diagnose(getColumn(), "no semi or equal sign for declarator") << decl->getName();
       //diag assert(false && ");
-      
+      Diag(diag::err_expected_semi_or_equal_declaration) << decl;
     }
   }
   else{
     // diag
-      errorReport.diagnose(getColumn(), "not identifer found after decl specifier") << T->getName();
+      //errorReport.diagnose(getColumn(), "not identifer found after decl specifier") << T->getName();
+      Diag(diag::err_expect_identifer) << T;
   }
 }
 
 void Parser::parseBracketDeclarator(Declarator& D, const QualType T){
   ConsumeBracket();
 
-  if (lookahead_.is(Token::r_square) {
+  if (lookahead_.is(Token::r_square)) {
     matchRHSPunct(Token::r_square);
     D.addTypeInfo(D.createArrayChunk(NULL);
   }
@@ -65,8 +68,8 @@ void Parser::parseBracketDeclarator(Declarator& D, const QualType T){
     D.addTypeInfo(D.createArrayChunk(idxNode) );
   }
   else{
-    errorReport.diagnose(getColumn(), "Syntax error after ") << D.;
     skipUntil(Token::r_square);
+    //errorReport.diagnose(getColumn(), "Syntax error after ") << D.;
   }
 }
 
@@ -93,8 +96,8 @@ ExprResult Parser::parseBraceInitialier(){
       }
     }
     else if (subElt.getExprClass() == kInitExprsClass) {
-      diag
-        break;
+      Diag(diag::err_braceinitialiazer_is_initexpr);
+      break;
     }
     else{
       InitExprVec.push_back(subElt);
@@ -150,6 +153,7 @@ ExprResult parseAssignment(){
       //  res = analyzeBuiltinCallID(lookahead_);//new BuiltinIdentifier(lookahead_.getIdentifierInfo() );
       //  break;
       //}
+      Diag(diag::err_expected_expression);
       return ExprError();
   }
   return parsePostfixSuffix(res);

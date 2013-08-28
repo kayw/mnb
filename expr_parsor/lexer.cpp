@@ -130,6 +130,7 @@ Token* Lexer::lexNumericToken(const char* curPtr){//todo: check over under flow 
     if (!isdigit(getNextChar(curPtr) ) {
       //errorReport.fill("no digits after float %d's dot", v);
       errorReport.diagnose(kFloatNoDigital, tokenColumn_) << v;
+      Diag(diag::err_illegal_float_dot_part) << v;
     }
     readNumeric(curPtr, ch, v);
   }

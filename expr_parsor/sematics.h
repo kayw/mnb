@@ -55,7 +55,7 @@ class Declarator{
 
 class Sematic{
   public:
-    Sematic();
+    Sematic(Lexer& l);
     ~Sematic();
     
     VarDecl analyzeDeclartor(const Declarator& D);
@@ -66,8 +66,9 @@ class Sematic{
   private:
     std::map<IdentifierInfo*, VarDecl*> declGroupMap_;
     void Diag(int32_t diagid){
-      errorReport.diagnose(getColumn(), diagid);
+      lex_.Diag(diagid);
     }
+    Lexer& lex_;
 };
 }
 }
