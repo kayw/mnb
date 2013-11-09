@@ -1,70 +1,78 @@
+#include "parser.h"
 namespace mnb{
 namespace expr{
-ExprResult Parser::ParseExpression(){
+
+ExprResult Parser::ParseExpression(const std::string& exprStr){
+  Lexer l(exprStr.c_str(),symbol_table_, Er_);
+  pLexer_ =  &l;
+  sema_.setSemaDependency(pLexer_, symbol_table_);
+  ConsumeToken();// prime token
   if (isDeclarationSpecifier() ) {
     parseDeclarator();
-  }
-  else{
+  } else {
     ExprResult lhs(parseAssignment() );
     return parseBinaryExprRHS(lhs, kAssign);
   }
+  return ExprResult(true);
 }
+
 void Parser::parseDeclarator() {
   QualType T = parseDeclSpecifier();
-  if (lookahead_.is(Token::identifer) ){
-    IdentifierInfo* pII = lookahead_.getIdentifierInfo();
-    Declarator D(dt, pII ); 
+  ConsumeToken();
+  if (lookahead_->is(Token::identifer) ){
+    const MString& decl_name = lookahead_->toString();
+    const IdentifierInfo* pII = lookahead_->getIdentifierInfo();
+    Declarator D(T, pII ); 
     //IdentifierInfo& ii = lookahead_.getIdentifierInfo();
     //ii.setType(dt);
     ConsumeToken();
     while(true){
-      if (lookahead_.is(Token::lsquare) )
-        parseBracketDeclarator(D, T);
+      if (lookahead_->is(Token::l_square) )
+        parseBracketDeclarator(D);
       else
         break;
     }
     VarDecl* decl = sema_.analyzeDeclarator(D);
     assert(decl);
-    if (lookahead_.is(Token::equal) ){
+    if (lookahead_->is(Token::equal) ){
       ConsumeToken();
-      ExprResult initialier(parseInitializer() );
+      ExprResult initialier = parseInitializer();
+      //ExprResult initialier(parseInitializer() );
       if (initialier.isInvalid() ) {
         Diag(diag::err_expected_expression);
         skipUntil(Token::comma);
         initialier = ExprError();
       }
-      decl->setInitialier(initialier);
+      decl->setInitialier(initialier);//todo analyzeassignment
     }
-    else if (lookahead_.is(Token::semi)){
+    else if (lookahead_->is(Token::semi)){
       ConsumeToken();
-      //decl->setInitialier(0);
       sema_.actOnUninitializedDecl(decl);
     }
     else{
       //errorReport.diagnose(getColumn(), "no semi or equal sign for declarator") << decl->getName();
       //diag assert(false && ");
-      Diag(diag::err_expected_semi_or_equal_declaration) << decl;
+      Diag(diag::err_expected_semi_or_equal_declaration) << decl_name;
     }
   }
   else{
     // diag
       //errorReport.diagnose(getColumn(), "not identifer found after decl specifier") << T->getName();
-      Diag(diag::err_expect_identifer) << T;
+      Diag(diag::err_expect_identifer) << T.get()->getTypeLiteral();
   }
 }
 
-void Parser::parseBracketDeclarator(Declarator& D, const QualType T){
-  ConsumeBracket();
-
-  if (lookahead_.is(Token::r_square)) {
+void Parser::parseBracketDeclarator(Declarator& D) {
+  matchRHSPunct(Token::l_square);
+  if (lookahead_->is(Token::r_square)) {
     matchRHSPunct(Token::r_square);
-    D.addTypeInfo(D.createArrayChunk(NULL);
+    D.addTypeInfo(D.createArrayChunk(NULL) );
   }
-  else if (lookahead_.is(Token::numeric)
-          && nextLookAheadToken(1).is(Token::r_square) ) {
-    ExprNode* idxNode = new ExprNode(T, lookahead_.value() );
+  else if (lookahead_->is(Token::numeric)
+          && nextLookAheadToken(1)->is(Token::r_square) ) {
+    Constant* idxNode = new Constant(lookahead_->getValue(), QualType(symbol_table_.typeOf(Token::kw_INT) ) );
     ConsumeToken();
-    matchRHSPunct(Token::r_square);
+    //matchRHSPunct(Token::r_square);FIXME: cachedLookAheads_.rbegin match
     D.addTypeInfo(D.createArrayChunk(idxNode) );
   }
   else{
@@ -74,10 +82,10 @@ void Parser::parseBracketDeclarator(Declarator& D, const QualType T){
 }
 
 ExprResult Parser::parseInitializer(){
-  if (lookahead_.isNot(Token::l_brace) ) {
-    return parseAssignment();
-  }
-  else{
+  if (!lookahead_->is(Token::l_brace) ) {
+    return parseAssignment();// lhs(parseAssignment); return parseBinaryExprRHS();  todo  a = 2+3
+  } else{
+    matchRHSPunct(Token::l_brace);
     return parseBraceInitialier();
   }
 }
@@ -87,67 +95,73 @@ ExprResult Parser::parseBraceInitialier(){
   bool initExprOK = true;
   std::vector<ExprNode*> InitExprVec;
   while(1){
-    subElt = parseInitializer().get();
-    if (!subElt.isInvalid() ) {
+    ExprResult subResult = parseInitializer();
+    subElt = subResult.get();
+    if (subResult.isInvalid() ) {
       initExprOK = false;
-      if (lookahead_.isNot(Token::comma)) {
+      if (!lookahead_->is(Token::comma)) {
         skipUntil(Token::r_brace);
         break;
       }
-    }
-    else if (subElt.getExprClass() == kInitExprsClass) {
+    } else if (subElt->getExprClass() == ExprNode::kInitExprsClass) { 
       Diag(diag::err_braceinitialiazer_is_initexpr);
       break;
-    }
-    else{
+    } else {
       InitExprVec.push_back(subElt);
     }
-    if (lookahead_.isNot(Token::comma) ) break;
+    if (!lookahead_->is(Token::comma) ) break;
     ConsumeToken();// comma lex
     // trailing comma
-    if (lookahead_.is(Token::r_brace) ) break;
+    if (lookahead_->is(Token::r_brace) ) break;
   }
-  if (initExprOK && lookahead_.is(Token::r_brace) ) {
+  if (initExprOK && lookahead_->is(Token::r_brace) ) {
+    matchRHSPunct(Token::r_brace);
     return sema_.analyzeInitExprs(InitExprVec);
   }
-  matchRHSPunct(Token::r_brace);
+  skipUntil(Token::r_brace);
   return ExprError();
 }
 
 bool Parser::isDeclarationSpecifier(){
-  return symbol_table_.findType(lookahead_.getKind() );
+  return symbol_table_.findType(lookahead_->getKind() );
 }
+
 QualType Parser::parseDeclSpecifier(){
-  ConsumeToken();
-  Token::TokenTag tag = lookahead_.getKind();
+  Token::TokenTag tag = lookahead_->getKind();
   //assert(symbol_table_.findType(tag) );
   return QualType(symbol_table_.typeOf(tag) );
 }
 
-ExprResult parseAssignment(){
-  ExprResult res;
-  switch(lookahead_.getKind() ){
+ExprResult Parser::parseAssignment() {
+  ExprResult res(true);
+  switch(lookahead_->getKind() ){
     case Token::l_paren:
       res = parseParenExpression();
       break;
     case Token::numeric: case Token::real_const:
     case Token::kw_TRUE: case Token::kw_ON:
     case Token::kw_FALSE: case Token::kw_OFF:
-      res = sema_.analyzeConstantLiteral(lookahead_);
-      ConsumeToken();
-      return res;
-    case Token::identifer:
-      IdentifierInfo* pii = lookahead_.getIdentifierInfo();
-      ConsumeToken();
-      res = sema_.analyzeIdentifier(pii);//builtincallid
+      {
+        res = sema_.analyzeConstantLiteral(lookahead_);
+        ConsumeToken();
+        return res;
+      }
+    case Token::identifer: 
+      {
+        const IdentifierInfo* pii = lookahead_->getIdentifierInfo();
+        ConsumeToken();
+        res = sema_.analyzeIdentifier(pii);//builtincallid
+      }
       break;
     case Token::tilde: case Token::minus:
-      Token opTok = lookahead_;
-      ConsumeToken();
-      res = parseAssignment();
-      if (!res.isInvalid() )
-        res = sema_.analyzeUnaryOperator(opTok,res);
-      return res.move(); 
+      {
+        Token::TokenTag opTokKind = lookahead_->getKind();
+        ConsumeToken();
+        res = parseAssignment();
+        if (!res.isInvalid() )
+          res = sema_.analyzeUnaryOperator(opTokKind, res.get());
+        return res;//res.move(); 
+      }
     default:
       //if (lookahead_.isBuiltinCall() ){
       //  res = analyzeBuiltinCallID(lookahead_);//new BuiltinIdentifier(lookahead_.getIdentifierInfo() );
@@ -159,92 +173,93 @@ ExprResult parseAssignment(){
   return parsePostfixSuffix(res);
 }
 
-ExprResult parseParenExpression(){
-  consumeParen();
+ExprResult Parser::parseParenExpression(){
+  //consumeParen();
+  matchRHSPunct(Token::l_paren);
   ExprResult res = parseAssignment();
-  if (!res.isInvalid() && lookahead_.is(Token::r_paren) ) {
-    res = new ParenExpr(res); //todo
+  ExprNode* pParenNode = NULL;
+  if (!res.isInvalid() && lookahead_->is(Token::r_paren) ) {
+    pParenNode = new ParenExpr(res); //todo
   }
   if (res.isInvalid() ){
     skipUntil(Token::r_paren);
     return ExprError();
   }
   matchRHSPunct(Token::r_paren);
-  return res.move();
+  return ExprResult(pParenNode);//res.move();
 }
 
-ExprResult parsePostfixSuffix(ExprResult Lhs){
+ExprResult Parser::parsePostfixSuffix(ExprResult Lhs){
   while(1){
-    switch(lookahead_.getKind() ){
-      case Token::l_square:
-        ConsumeBracket();
-        ExprResult idx = parseAssignment();
-        if (!Lhs.isInvalid() && !idx.isInvalid() && lookahead_.is(Token::r_square) ) {
-          Lhs = sema_.analyzeArraySubscript(Lhs, idx);
+    switch(lookahead_->getKind() ){
+      case Token::l_square: {
+          matchRHSPunct(Token::l_square);
+          ExprResult idx = parseAssignment();
+          if (!Lhs.isInvalid() && !idx.isInvalid() && lookahead_->is(Token::r_square) ) {
+            Lhs = sema_.analyzeArraySubscript(Lhs, idx);
+          } else{
+            Lhs = ExprError();
+          }
+          matchRHSPunct(Token::r_square);
         }
-        else{
-          Lhs = ExprError();
-        }
-        matchRHSPunct(Token::r_square);
         break;
-      case Token::l_paren:
-        consumeParen();
-        ExprVector args;
-        if (!Lhs.isInvalid() && parseExprListFailed(args) ) 
-          Lhs = ExprError();
-          skipUntil(Token::r_paren);
-        }
-        else if(lookahead_.isNot(Token::r_paren) ){
-          matchRHSPunct(Token::r_paren);
-          Lhs = ExprError();
-        }
-        else{
-          Lhs = sema_.analyzeBuiltinCallExpr(Lhs, args);
-          consumeParen();
+      case Token::l_paren: {
+          matchRHSPunct(Token::l_paren);
+          ExprVector args;
+          if (!Lhs.isInvalid() && parseExprListFailed(args) ) {
+            Lhs = ExprError();
+            skipUntil(Token::r_paren);
+          } else if(!lookahead_->is(Token::r_paren) ) {
+            matchRHSPunct(Token::r_paren);
+            Lhs = ExprError();
+          } else {
+            Lhs = sema_.analyzeBuiltinCallExpr(Lhs, args);
+            matchRHSPunct(Token::r_paren);
+          }
         }
         break;
       default:
-        return Lhs.move();
+        return Lhs;//Lhs.move();
     }
   }
 }
 
-bool Parser::parseExprListFailed(ExprVector& exprs, std::vector<Loc>& commaLocs){
+bool Parser::parseExprListFailed(ExprVector& exprs) {
   while(1){
    ExprResult expr = parseAssignment();
    if (expr.isInvalid() ) 
      return true;
-   exprs.push_back(expr.take() );
-   if (lookahead_.isNot(Token::comma) )
+   exprs.push_back(expr);
+   if (!lookahead_->is(Token::comma) )
      return false;
-   commaLocs.push_back(ConsumeToken() );
+   ConsumeToken();
   }
 }
 
 ExprResult Parser::parseBinaryExprRHS(ExprResult lhs, BinaryPreced minPrec){
-  BinaryPreced nextPrec = getBinOpPrecedence(lookahead_.getKind() );
+  BinaryPreced nextPrec = getBinOpPrecedence(lookahead_->getKind() );
   while (nextPrec >= minPrec){
-    Token opTok = lookahead_;
+    Token::TokenTag opTokKind = lookahead_->getKind();
     ConsumeToken();
     ExprResult rhs = parseAssignment();
     BinaryPreced thisPrec = nextPrec;
-    nextPrec = getBinOpPrecedence(lookahead_.getKind() );
+    nextPrec = getBinOpPrecedence(lookahead_->getKind() );
     bool isRightAssoc = (nextPrec == kAssign);
     if (nextPrec > thisPrec || (nextPrec == thisPrec && isRightAssoc) ){
       rhs = parseBinaryExprRHS(rhs, static_cast<BinaryPreced>(thisPrec + !isRightAssoc) );
       if (rhs.isInvalid() )
         lhs = ExprError();
-      nextPrec = getBinOpPrecedence(lookahead_.getKind() );
+      nextPrec = getBinOpPrecedence(lookahead_->getKind() );
     }
-    assert((NextTokPrec <= ThisPrec) && "Recursion didn't work!");
-    if (!lhs.isInvalid() ) {
-      lhs = sema_.analyzeBinaryOperator(lhs, rhs, opTok);
+    assert((nextPrec <= thisPrec) && "Recursion didn't work!");
+    if (!lhs.isInvalid() && !rhs.isInvalid() ) {
+      lhs = sema_.analyzeBinaryOperator(opTokKind, lhs, rhs);
     }
   }
-  return lhs.move();
+  return lhs;//lhs.move();
 }
 
-static BinaryPreced Parser::getBinOpPrecedence(const TokenKind kind){
+Parser::BinaryPreced Parser::getBinOpPrecedence(const Token::TokenTag kind){
   switch(kind){
     case Token::comma: 
       return kComma;
@@ -253,7 +268,7 @@ static BinaryPreced Parser::getBinOpPrecedence(const TokenKind kind){
     case Token::pipepipe:
       return kLogicalOR;
     case Token::ampamp:
-      return kLogicalAND:
+      return kLogicalAND;
     case Token::pipe:
         return kInclusiveOR;
     case Token::caret:

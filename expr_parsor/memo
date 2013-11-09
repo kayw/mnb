@@ -1,10 +1,16 @@
-//vardecl  exprnode exprclass
-InitExprs ArraySubscriptExpr
-isConstantZero ExprResult
+vim:
+snipmate\ultisnip cleanup
 
-Owned(ExprResult) ExprResult.move ExprNode* organize
-Diagnose how errorreporter
-location tip
+
+//SourceLocation parameter sematics cleanup
+parser complete declaration
+//vardecl  exprnode exprclass
+//InitExprs ArraySubscriptExpr
+//isConstantZero ExprResult
+
+//Owned(ExprResult) ExprResult.move ExprNode* organize
+//Diagnose how errorreporter
+//location tip
 
 
 

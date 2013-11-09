@@ -1,71 +1,79 @@
-#include "ast.h"
+#include "builtinfn.h"
+#include "symbols.h"
 namespace mnb{
 namespace expr{
-FunctionDecl* FunctionDecl::createBuiltinDecl(const BuiltinInfo* pbi){
+FunctionDecl* FunctionDecl::createBuiltinDecl(const BuiltinInfo& bi, IdentifierTable& table){
   FunctionDecl* pFD = NULL;
-  switch(pbi->builtinId_){
-    case kBISIN:
+  switch(bi.builtinID_){
+    case BuiltinInfo::kBISIN:
       pFD = static_cast<FunctionDecl*>(new FDSin() );
       break;
-    case kBICOS:
+    case BuiltinInfo::kBICOS:
       pFD = static_cast<FunctionDecl*>(new FDCos() );
       break;
-    case kBITG:
+    case BuiltinInfo::kBITG:
       pFD = static_cast<FunctionDecl*>(new FDTg() );
       break;
-    case kBICTG:
+    case BuiltinInfo::kBICTG:
       pFD = static_cast<FunctionDecl*>(new FDCtg() );
       break;
-    case kBILOG:
+    case BuiltinInfo::kBILOG:
       pFD = static_cast<FunctionDecl*>(new FDLog() );
       break;
-    case kBIPOW:
+    case BuiltinInfo::kBIPOW:
       pFD = static_cast<FunctionDecl*>(new FDPow() );
       break;
-    case kBIMAX:
+    case BuiltinInfo::kBIMAX:
       pFD = static_cast<FunctionDecl*>(new FDMax() );
       break;
-    case kBIMIN:
+    case BuiltinInfo::kBIMIN:
       pFD = static_cast<FunctionDecl*>(new FDMin() );
       break;
-    case kBIABS:
+    case BuiltinInfo::kBIABS:
       pFD = static_cast<FunctionDecl*>(new FDAbs() );
       break;
-    case kBISQRT:
+    case BuiltinInfo::kBISQRT:
       pFD = static_cast<FunctionDecl*>(new FDSqrt() );
       break;
     default:
-      return NULL;
+      break;
   }
-  if (!initProtoTypes(pbi, pFD) )
-    return NULL;
+  if (!initProtoTypes(bi, pFD, table) )
+    SAFE_DELETE(pFD);
+  return pFD;
 }
 
-bool FunctionDecl::initProtoTypes(const BuiltinInfo* pbi, const FunctionDecl* pFuncDecl){
+bool FunctionDecl::initProtoTypes(const BuiltinInfo& bi, FunctionDecl* pFuncDecl, IdentifierTable& table){
   if (!pFuncDecl)
     return false;
-  const string& tmpTypestr = pbi->Type_;
+  const MString& tmpTypestr = bi.Type_;
   if(tmpTypestr.begin() == tmpTypestr.end() )
     return false;
-  string::const_iterator scit = tmpTypestr.begin();
-  pFuncDecl->setCallResultType(createTypeFromChar(*scit++) );
+  MString::const_iterator scit = tmpTypestr.begin();
+  pFuncDecl->setCallResultType(createTypeFromChar(*scit++, table) );
   for(; scit != tmpTypestr.end(); ++scit)
-    pFuncDecl->pushArgumentType(createTypeFromChar(*scit));
+    pFuncDecl->pushArgumentType(createTypeFromChar(*scit, table) );//todo argument positive
   return true;
 }
 
-QualType FunctionDecl::createTypeFromChar(const char* typechar){
+QualType FunctionDecl::createTypeFromChar(const char typechar, IdentifierTable& table){
   //const struct TypeCharSt = {{"r", "REAL"}, {"d", "DINT"} };
+  const IdentifierInfo* pII = NULL;
   switch(typechar){
     case 'r':
-      const IdentifierInfo* pII = symbol_table_.lookupIdentifier("REAL");
-      const DeclType* pdt = symbol_table_.typeOf(pII.tag_);
-      return QualType(pdt);
+      pII = table.lookupIdentifier("REAL");
+      break;
+
     case 'd':
-      const IdentifierInfo* pII = symbol_table_.lookupIdentifier("DINT");
-      const DeclType* pdt = symbol_table_.typeOf(pII.tag_);
-      return QualType(pdt);
+      pII = table.lookupIdentifier("DINT");
+      break;
+
     default:
-      return QualType();
+      break;
   }
+  DeclType* pdt = pII ? table.typeOf(pII->tag_) : NULL;
+  return QualType(static_cast<Type*>(pdt) );
+}
+
+}
 }

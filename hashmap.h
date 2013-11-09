@@ -1,3 +1,4 @@
+#include <memory>
 namespace mnb {
 namespace hash{
   using std::size_t;
@@ -104,10 +105,10 @@ namespace hash{
     size_t operator()(unsigned long v) const  {return static_cast<size_t>(v);}
   };
 }
+using namespace std;
 template<class NodePtr>
 class HashIterator{
   public:
-    using namespace std;
     typedef forward_iterator_tag                         iterator_category;
     typedef typename pointer_traits<NodePtr>::element_type::value_type value_type;
     typedef typename pointer_traits<NodePtr>::difference_type difference_type;
@@ -142,7 +143,7 @@ class HashConstIterator{
     typedef forward_iterator_tag iterator_category;
     typedef typename pointer_traits<ConstNodePtr>::element_type::value_type value_type;
     typedef typename pointer_traits<ConstNodePtr>::difference_type difference_type;
-    typedef typename pointer_traits<ConstNodePtr>::template rebind<value_type> pointer;
+    typedef class pointer_traits<ConstNodePtr>::template rebind<value_type> pointer;
     typedef value_type& reference;
     HashConstIterator(){}
     HashConstIterator(HashIterator<NodePtr>& rhs)

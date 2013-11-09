@@ -1,90 +1,91 @@
-#include "ast.h"
+#include "sematics.h"
+#include "symbols.h"
+#include "builtinfn.h"
 //using namespace mnb::expr;
 namespace mnb{
 namespace expr{
-ExprResult Owned(ExprNode* E){
-  return E;
-}
 
-ExprResult ExprError(){
-  return ExprResult(false);
+ExprResult Sematic::Owned(ExprNode* E){
+  return ExprResult(E);
 }
 
 VarDecl* Sematic::analyzeDeclarator(const Declarator& D){
   QualType t = getTypeInfoBy(D);
   VarDecl* decl = new VarDecl(t);
-  declGroupMap_.insert(D.getIdentifier(), decl);
+  //declGroupMap_.insert(D.getIdentifier(), decl);
+  declGroupMap_[D.getIdentifier()] = decl;
   return decl;
 }
 
 QualType Sematic::getTypeInfoBy(const Declarator& D){
-  QualType T = D.getQualType();
+  QualType T = D.getDeclType();
   int e = D.getTypeObjects();
   int i = 0;
   for (; e != i ; ++i) {
-    DeclaratorChunk& dc = D.getChunckObject(e - i - 1);
-    if (dc.getKind() == DeclaratorChunk::Array) {
-      DeclaratorChunk::ArrayTypeInfo ati = dc.Arr_;
-      T = buildArrayType(T, ati.Arr_.ElemSize); 
+    const Declarator::DeclaratorChunk& dc = D.getChunckObject(e - i - 1);
+    if (dc.ChunkKind == Declarator::DeclaratorChunk::kArrayType) {
+      Declarator::DeclaratorChunk::ArrayTypeInfo ati = dc.Arr_;
+      T = buildArrayType(T, ati.ElemSize); 
     }
   }
   return T;
 }
 
 QualType Sematic::buildArrayType(QualType T, ExprNode* arraySize){
-  if (!arraySize) {
-    Diag(diag::err_invalid_array_element_size);
-    return T;
-  }
-  uint64_t constVal = arraySize.evaluate();
+  //[] arraySize is NULL(size set later as initializer'size)
+  //if (!arraySize) {
+  //  Diag(diag::err_invalid_array_element_size);
+  //  return T;
+  //}
+  uint64_t constVal = arraySize ? arraySize->evaluate().intVal.uintValue : 0;
   ConstArrayType* pNewCAT = new ConstArrayType(T, constVal);
   return QualType(pNewCAT);
 }
 
-ExprResult Sematic::analyzeInitExprs(const std::vector<ExprNode*>& initList){
+ExprResult Sematic::analyzeInitExprs(std::vector<ExprNode*>& initList){
   return ExprResult(new InitExprs(initList) );
 }
 
-ExprResult Sematic::analyzeIdentifier(const IdentifierInfo* pII){  
+ExprResult Sematic::analyzeIdentifier(const IdentifierInfo* pII) {  
   if(!pII)
-    return ExprResult(false);
-  BuiltinInfo* pbi = symbol_table_.findBuiltinIDInfo(pII->tag_);
+    return ExprResult(true);
+  BuiltinInfo* pbi = psymbol_table_->findBuiltinIDInfo(pII);
   if(pbi) {
-    FunctionDecl* pfd = FunctionDecl::createBuiltinDecl(pbi);
+    FunctionDecl* pfd = FunctionDecl::createBuiltinDecl(*pbi, *psymbol_table_);
     return ExprResult(new BuiltinCallExpr(pfd) );
   }
   else if(declGroupMap_.find(pII) != declGroupMap_.end() ) {
-    return ExprResult(new VarDecl(pII) );
+    return ExprResult(declGroupMap_[pII]);
   }
   else{
-    return ExprResult(false);
+    return ExprResult(true);
   }
 }
 
-ExprResult Sematic::analyzeConstantLiteral(Token* pToken){
+ExprResult Sematic::analyzeConstantLiteral(Token* pToken) {
   switch(pToken->getKind() ){
     case Token::numeric:
       //Num* pNumTok = static_cast<Num*>(pToken);
-      return ExprResult(new Constant(pToken->getValue()) );
+      return ExprResult(new Constant(pToken->getValue(), QualType(psymbol_table_->typeOf(Token::kw_INT) ) ) );
     case Token::real_const:
       //Real* pRealTok = static_cast<Real*>(pToken);
-      return ExprResult(new Constant(pToken->getValue()) );
+      return ExprResult(new Constant(pToken->getFloatValue(), QualType(psymbol_table_->typeOf(Token::kw_REAL) ) ) );
     case Token::kw_TRUE: case Token::kw_ON:
-      return ExprResult(new Constant(true) );
+      return ExprResult(new Constant(true, QualType(psymbol_table_->typeOf(Token::kw_BOOL) ) ) );
     case Token::kw_FALSE: case Token::kw_OFF:
-      return ExprResult(new Constant(false) );
+      return ExprResult(new Constant(false, QualType(psymbol_table_->typeOf(Token::kw_BOOL) ) ) );
     default:
-      return ExprResult(false);
+      return ExprResult(true);
   }
 }
 
-void Sematic::actOnUninitializedDecl(VarDecl* decl){
-  QualType T = decl.getQualType();
-  decl->setInitialier(T.createDefaultInit() );
+void Sematic::actOnUninitializedDecl(VarDecl* decl) {
+  QualType T = decl->getQualType();
+  decl->setInitialier(T.createDefaultInit(*psymbol_table_) );
 }
 
-ExprResult Sematic::analyzeBinaryOperator(const Token opTok, ExprResult lhs, ExprResult rhs){
-  OperatorKind opk = getBinaryOpcode(opTok);
+ExprResult Sematic::analyzeBinaryOperator(const Token::TokenTag opTokKind, ExprResult& lhs, ExprResult& rhs){
+  OperatorKind opk = getBinaryOpcode(opTokKind);
   QualType resultTy;
   switch(opk){
     case kBOAssign:
@@ -103,43 +104,43 @@ ExprResult Sematic::analyzeBinaryOperator(const Token opTok, ExprResult lhs, Exp
       resultTy = checkAdditionSubtractOperands(lhs, rhs);
       break;
     case kBOShl: case kBOShr:
-      resultTy = checkShiftOperands(lhs, rhs);
+      resultTy = checkShiftOperands(lhs, rhs, opk);
       break;
-    case kBO_LE: case kBO_LT:
-    case kBO_GE: case kBO_GT:
-      resultTy = checkCompareOperands(lhs, rhs, Opc, true);
+    case kBOLE: case kBOLT:
+    case kBOGE: case kBOGT:
+      resultTy = checkCompareOperands(lhs, rhs, true);
       break;
-    case kBO_EQ: case kBO_NE:
-      resultTy = checkCompareOperands(lhs, rhs, Opc, false);
+    case kBOEQ: case kBONE:
+      resultTy = checkCompareOperands(lhs, rhs, false);
       break;
     case kBOBitAnd: case kBOBitXor: case kBOBitOr:
       resultTy = checkBitwiseOperands(lhs, rhs);
       break;
     case kBOLAnd: case kBOLOr:
-      ResultTy = checkLogicalOperands(lhs, rhs, Opc);
+      resultTy = checkLogicalOperands(lhs, rhs);
+      break;
+    default:
       break;
   }
 
-  if (ResultTy.isNull() || lhs.isInvalid() || rhs.isInvalid())
+  if (resultTy.isNull() || lhs.isInvalid() || rhs.isInvalid())
     return ExprError();
 
   // Check for array bounds violations for both sides of the BinaryOperator
   CheckArrayAccess(lhs.get());
   CheckArrayAccess(rhs.get());
 
-  return Owned(new BinaryOperator(lhs.take(), rhs.take(), Opc,
-                                              ResultTy, VK, OK, OpLoc));
+  return Owned(new BinaryOperatorExpr(lhs, rhs, opk, resultTy) );
 }
 
-QualType Sematic::checkMultiplyDivOperands(
-  ExprResult &lex, ExprResult &rex, SourceLocation Loc, bool isDiv) {
+QualType Sematic::checkMultiplyDivOperands(ExprResult &lex, ExprResult &rex, bool isDiv) {
   QualType compType = arithmeticConversion(lex, rex);
   if (lex.isInvalid() || rex.isInvalid())
     return QualType();
 
-  if (!lex.get()->getType()->isArithmeticType() ||
-      !rex.get()->getType()->isArithmeticType())
-    return invalidOperands(Loc, lex, rex);
+  if (!lex.get()->getQualType().isArithmeticType() ||
+      !rex.get()->getQualType().isArithmeticType())
+    return invalidOperands(lex, rex);
 
   // Check for division by zero.
   if (isDiv && rex.get()->isConstantZero() )
@@ -153,9 +154,9 @@ QualType Sematic::checkRemainderOperands(ExprResult& lex, ExprResult& rex){
   if (lex.isInvalid() || rex.isInvalid())
     return QualType();
 
-  if (!lex.get()->getType()->isIntegerType() ||
-      !rex.get()->getType()->isIntegerType())
-    return invalidOperands(Loc, lex, rex);
+  if (!lex.get()->getQualType().isIntegerType() ||
+      !rex.get()->getQualType().isIntegerType())
+    return invalidOperands(lex, rex);
 
   // Check for remainder by zero.
   if (rex.get()->isConstantZero() )
@@ -164,50 +165,44 @@ QualType Sematic::checkRemainderOperands(ExprResult& lex, ExprResult& rex){
   return compType;
 }
 
-QualType Sematic::checkAdditionSubtractOperands( // C99 6.5.6
-  ExprResult &lex, ExprResult &rex, SourceLocation Loc) {
+// C99 6.5.6
+QualType Sematic::checkAdditionSubtractOperands(ExprResult &lex, ExprResult &rex) {
   QualType compType = arithmeticConversion(lex, rex);
   if (lex.isInvalid() || rex.isInvalid())
     return QualType();
 
-  if (!lex.get()->getType()->isArithmeticType() ||
-      !rex.get()->getType()->isArithmeticType())
-    return invalidOperands(Loc, lex, rex);
+  if (!lex.get()->getQualType().isArithmeticType() ||
+      !rex.get()->getQualType().isArithmeticType())
+    return invalidOperands(lex, rex);
 
   return compType;
 }
 
-QualType Sematic::checkShiftOperands(ExprResult &lex, ExprResult &rex,
-                                  SourceLocation Loc, unsigned Opc) {
+QualType Sematic::checkShiftOperands(ExprResult &lex, ExprResult &rex, unsigned Opc) {
   // C99 6.5.7p2: Each of the operands shall have integer type.
-  if (!lex.get()->getType()->isIntegerType() || 
-      !rex.get()->getType()->isIntegerType())
-    return invalidOperands(Loc, lex, rex);
+  if (!lex.get()->getQualType().isIntegerType() || 
+      !rex.get()->getQualType().isIntegerType())
+    return invalidOperands(lex, rex);
 
   //C99 6.5.7p3
 
   if (lex.isInvalid())
     return QualType();
-  QualType LHSTy = lex.get()->getType();
 
   // The RHS is simpler.
   if (rex.isInvalid())
     return QualType();
 
   // Sanity-check shift operands
-  diagnoseBadShiftValues(*this, lex, rex, Loc, Opc, LHSTy);
+  diagnoseBadShiftValues(lex, rex, Opc);
 
   // "The type of the result is that of the promoted left operand."
-  return LHSTy;
+  return arithmeticConversion(lex, rex);
 }
 
-QualType Sematic::checkCompareOperands(ExprResult &lex, ExprResult &rex,
-                                    SourceLocation Loc, unsigned OpaqueOpc,
-                                    bool isRelational) {
-  OperatorKind Opc = (OperatorKind) OpaqueOpc;
-
-  QualType lType = lex.get()->getType();
-  QualType rType = rex.get()->getType();
+QualType Sematic::checkCompareOperands(ExprResult &lex, ExprResult &rex, bool isRelational) {
+  QualType lType = lex.get()->getQualType();
+  QualType rType = rex.get()->getQualType();
 
     // For non-floating point types, check for self-comparisons of the form
     // x == x, x != x, x < x, etc.  These always evaluate to a constant, and
@@ -221,15 +216,15 @@ QualType Sematic::checkCompareOperands(ExprResult &lex, ExprResult &rex,
     // result.
 
   // C99 6.5.8p3 / C99 6.5.9p4
-  if (lex.get()->getType()->isArithmeticType()
-      && rex.get()->getType()->isArithmeticType()
+  if (lex.get()->getQualType().isArithmeticType()
+      && rex.get()->getQualType().isArithmeticType()
       && isRelational) {
     arithmeticConversion(lex, rex);
     if (lex.isInvalid() || rex.isInvalid())
       return QualType();
   }else if (!isRelational /* == !=*/
-      && lex.get()->getType()->hasIntegerRepresentation()
-      && rex.get()->getType()->hasIntegerRepresentation()){
+      && lex.get()->getQualType().hasIntegerRepresentation()
+      && rex.get()->getQualType().hasIntegerRepresentation()){
     //lex = unaryConversions(lex.take());
     //if (lex.isInvalid())
     //  return QualType();
@@ -241,35 +236,32 @@ QualType Sematic::checkCompareOperands(ExprResult &lex, ExprResult &rex,
   }
 
   // The result of comparisons is 'bool' in C++, 'int' in C.
-  QualType ResultTy = BoolTy;
+  QualType ResultTy = QualType(psymbol_table_->typeOf(Token::kw_BOOL));
   return ResultTy;
 }
 
-QualType Sematic::checkBitwiseOperands(ExprResult &lex, ExprResult &rex, SourceLocation Loc) {
-  ExprResult lexResult = Owned(lex), rexResult = Owned(rex);
-  QualType compType = arithmeticConversion(lexResult, rexResult);
-  if (lexResult.isInvalid() || rexResult.isInvalid())
+QualType Sematic::checkBitwiseOperands(ExprResult &lex, ExprResult &rex) {
+  QualType compType = arithmeticConversion(lex, rex);
+  if (lex.isInvalid() || rex.isInvalid())
     return QualType();
-  lex = lexResult.take();
-  rex = rexResult.take();
-  if (lex.get().getType().isIntegerType() && 
-      rex.get().getType().isIntegerType() )
+  if (lex.get()->getQualType().isIntegerType() && 
+      rex.get()->getQualType().isIntegerType() )
     return compType;
 
-  return invalidOperands(Loc, lex, rex);
+  return invalidOperands(lex, rex);
 }
 
-QualType Sematic::checkLogicalOperands( // C99 6.5.[13,14]
-  ExprResult &lex, ExprResult &rex, SourceLocation Loc, unsigned Opc) {
+// C99 6.5.[13,14]
+QualType Sematic::checkLogicalOperands(ExprResult &lex, ExprResult &rex) {
   
   // Diagnose cases where the user write a logical and/or but probably meant a
   // bitwise one.  We do this when the LHS is a non-bool integer and the RHS
   // is a constant.
-  if (!lex.get()->getType()->isBooleanType() ||
-      !rex.get()->getType()->isBooleanType())
-    return invalidOperands(Loc, lex, rex);
+  if (!lex.get()->getQualType().get()->isBooleanType() ||
+      !rex.get()->getQualType().get()->isBooleanType())
+    return invalidOperands(lex, rex);
 
-  return BoolTy;
+  return QualType(psymbol_table_->typeOf(Token::kw_BOOL));
 
   // The following is safe because we only use this method for
   // non-overloadable operands.
@@ -279,36 +271,37 @@ QualType Sematic::checkLogicalOperands( // C99 6.5.[13,14]
   // The operands are both contextually converted to type bool.
 }
 
-QualType Sematic::checkAssignmentOperands(ExprNode* LHS, ExprResult &RHS,
-                                       SourceLocation Loc) {
+QualType Sematic::checkAssignmentOperands(ExprNode* LHS, ExprResult &RHS) {
   // Verify that LHS is a modifiable lvalue, and emit error if not.
 
-  QualType LHSType = LHS->getType();
-  QualType RHSType =RHS.get()->getType();
+  QualType LHSType = LHS->getQualType();//ptype null
+  QualType RHSType =RHS.get()->getQualType();
 
   // Get canonical types.  We're not formatting these types, just comparing
   // them.
   // Common case: no conversion required.
-  if (LHSType == RHSType) {
+  if (LHSType.isEqual(RHSType) ) {
     return LHSType;
   }
   CastKind Kind =  kCastNoOp;
-  switch(LHSType.getKind() ){
+  switch(LHSType.get()->getKind() ){
     case kBoolTy:
       if (RHSType.isIntegerType() )
         Kind = kCastIntegralToBoolean;
-      if (RHSType.isFloatingType() )
+      if (RHSType.get()->isFloatingType() )
         Kind = kCastFloatingToBoolean;
       break;
     case kIntTy:
-      if (RHSType.isBooleanType() || RHSType.isIntegerType() )
+      if (RHSType.get()->isBooleanType() || RHSType.isIntegerType() )
         Kind = kCastIntegral;
-      if (RHSType.isFloatingType() )
+      if (RHSType.get()->isFloatingType() )
         Kind = kCastFloatingToIntegral;
       break;
     case kFloatTy:
-      if (RHSType.isIntegerType() || RHSType.isBooleanType() )
+      if (RHSType.isIntegerType() || RHSType.get()->isBooleanType() )
         Kind = kCastIntegralToFloating;
+      break;
+    default:
       break;
   }
   // C99 6.5.16.1p2: The value of the right operand is converted to the
@@ -317,7 +310,7 @@ QualType Sematic::checkAssignmentOperands(ExprNode* LHS, ExprResult &RHS,
   // so that we can use references in built-in functions even in C.
   // The getNonReferenceType() call makes sure that the resulting expression
   // does not have reference type.
-  RHS = createCastExprByType(RHS.take(), LHSType, Kind);
+  RHS = createCastExprByType(RHS.get(), LHSType, Kind);
   // Simple assignment "x = y".
   if (RHS.isInvalid())
     return QualType();
@@ -331,7 +324,7 @@ QualType Sematic::checkAssignmentOperands(ExprNode* LHS, ExprResult &RHS,
   return LHSType; 
 }
 
-int Sematic::getIntegerTypeRank(const QualType& lhsTy, const QualType& rhsTy){
+int Sematic::getIntegerTypeRank(const QualType& lhsTy, const QualType& rhsTy) {
   int lhsIntWidth = lhsTy.getTypeWidth();
   int rhsIntWidth = rhsTy.getTypeWidth();
   bool lhsSigned = lhsTy.isSignedInteger();
@@ -355,48 +348,41 @@ int Sematic::getIntegerTypeRank(const QualType& lhsTy, const QualType& rhsTy){
   return -1;
 }
 
-QualType Sematic::arithmeticConversion(ExprResult& lhsExpr, ExprResult& rhsExpr){
-  QualType lhsTy = lhsExpr.get()->getQualType();
+QualType Sematic::arithmeticConversion(ExprResult& lhsExpr, ExprResult& rhsExpr) {
+  QualType lhsTy = lhsExpr.get()->getQualType();//todo pType null return other type constant node type null
   QualType rhsTy = rhsExpr.get()->getQualType();
-  if (lhsTy == rhsTy)
+  if (lhsTy.isEqual(rhsTy) )
     return lhsTy;
   if (lhsTy.isIntegerType() && rhsTy.isIntegerType() )
     return arithIntegerCast(lhsExpr, rhsExpr);
-  bool lhsFloat = lhsTy.isFloatingType();
-  bool rhsFloat = rhsTy.isFloatingType();
+  bool lhsFloat = lhsTy.get()->isFloatingType();
+  bool rhsFloat = rhsTy.get()->isFloatingType();
   // If we have an integer operand, the result is the real floating type.
-  if (LHSFloat) {
+  if (lhsFloat) {
     if (rhsTy.isIntegerType()) {
       // Convert rhs to the lhs floating point type.
-      rhsExpr = createCastExprByType(rhsExpr.take(), lhs, kCastIntegralToFloating);
-      return lhs;
+      rhsExpr = createCastExprByType(rhsExpr.get(), lhsTy, kCastIntegralToFloating);
+      return lhsTy;
     }
   }
-  if (RHSFloat) {
+  if (rhsFloat) {
     if (lhsTy.isIntegerType()) {
       // Convert lhs to the rhs floating point type.
-      lhsExpr = createCastExprByType(lhsExpr.take(), rhs, kCastIntegralToFloating);
-      return rhs;
+      lhsExpr = createCastExprByType(lhsExpr.get(), rhsTy, kCastIntegralToFloating);
+      return rhsTy;
     }
   }
+  return lhsTy;
 }
 
-QualType Sematic::invalidOperands(SourceLocation Loc, ExprResult &lex,
-                               ExprResult &rex) {
+QualType Sematic::invalidOperands(ExprResult &lex, ExprResult &rex) {
   Diag(diag::err_typecheck_invalid_operands)
-    << lex.get()->getType() << rex.get()->getType();
+    << lex.get()->getQualType().get()->getTypeLiteral()
+    << rex.get()->getQualType().get()->getTypeLiteral();
   return QualType();
 }
 
-void Sematic::diagnoseBadShiftValues(ExprResult &lex, ExprResult &rex,
-                                   SourceLocation Loc, unsigned Opc,
-                                   QualType LHSTy) {
-  //llvm::APSInt Right;
-  QualType RHSTy = rex.get()->getQualType();
-  // Check right/shifter operand
-  if (!RHSTy->isIntegerType() )
-    return;
-
+void Sematic::diagnoseBadShiftValues(ExprResult &lex, ExprResult &rex, unsigned Opc) {
   ExprValue eval = rex.get()->evaluate();
   if (eval.isNegative() ) {
     Diag(diag::warn_shift_negative);
@@ -404,8 +390,8 @@ void Sematic::diagnoseBadShiftValues(ExprResult &lex, ExprResult &rex,
   }
   //llvm::APInt LeftBits(Right.getBitWidth(),
   //                     S.Context.getTypeSize(lex.get()->getType()));
-  int32_t leftbits = lex.get()->getTypeWidth();
-  if (eval.intVal.uintValue > leftbits){//Right.uge(LeftBits)) {
+  int32_t leftbits = lex.get()->getQualType().get()->getTypeWidth();
+  if (static_cast<int32_t>(eval.intVal.uintValue) > leftbits){//Right.uge(LeftBits)) {
     Diag(diag::warn_shift_gt_typewidth);
     return;
   }
@@ -417,12 +403,13 @@ void Sematic::diagnoseBadShiftValues(ExprResult &lex, ExprResult &rex,
   // integers have defined behavior modulo one more than the maximum value
   // representable in the result type, so never warn for those.
   QualType LHSTy = lex.get()->getQualType();
-  if (!LHSTy.isIntegerType() || !LHSTy->isSignedInteger())
+  if (!LHSTy.isIntegerType() || !LHSTy.isSignedInteger())
     return;
   ExprValue leftvalue = lex.get()->evaluate();
   int32_t resultBits = eval.intVal.uintValue + leftvalue.getValidBits();
   if (leftbits < resultBits) //LeftBits.uge(ResultBits))
-    Diag(diag::warn_shift_result_gt_typewidth) << resultBits << LHSTy << leftbits;
+    Diag(diag::warn_shift_result_gt_typewidth) << resultBits 
+      << LHSTy.get()->getTypeLiteral() << leftbits;
   //if (leftbits == resultBits - 1) {
   //  S.Diag(Loc, diag::warn_shift_result_sets_sign_bit)
   //      << LHSTy
@@ -436,19 +423,20 @@ void Sematic::diagnoseBadShiftValues(ExprResult &lex, ExprResult &rex,
 }
 
 void Sematic::CheckArrayAccess(const ExprNode* expr) {
-  assert(expr->getStmtClass() == kArraySubscriptExprClasss );
+  if(expr->getExprClass() != ExprNode::kArraySubscriptExprClasss )
+    return;
   const ExprNode* BaseExpr = expr->getBase();
-  const ExprNode* IndexExpr = expr->getIdx();
+  ExprNode* IndexExpr = expr->getIdx();
 
-  const ConstantArrayType *ArrayTy =
-    static_cast<ConstantArrayType>(BaseExpr->getQualType().get() );
+  const ConstArrayType *ArrayTy =
+    static_cast<ConstArrayType*>(BaseExpr->getQualType().get() );
   if (!ArrayTy)
     return;
 
   QualType indexType = IndexExpr->getQualType();
   if (!indexType.isIntegerType() )
     return;
-  ExprValue index = IndexExpr.evaluate();
+  ExprValue index = IndexExpr->evaluate();
 
   if (!index.isNegative() ) {
     int32_t size = ArrayTy->getArraySize();
@@ -458,77 +446,81 @@ void Sematic::CheckArrayAccess(const ExprNode* expr) {
     // arithmetic also allow the index (offset) to be equal to size since
     // computing the next address after the end of the array is legal and
     // commonly done e.g. in C++ iterators and range-based for loops.
-    if (index.intVal.uintValue >= size)
-      return;
-    Diag(diag::warn_array_index_exceeds_bounds)<< index.toString(10, true)
-                          << size.toString(10, true)
-                          << (unsigned)size.getLimitedValue(~0U);
+    if (static_cast<int32_t>(index.intVal.uintValue) >= size)
+      Diag(diag::warn_array_index_exceeds_bounds) << index.intVal.uintValue//index.toString(10, true)
+                          << size;
+                          //<< (unsigned)(~0U);//(unsigned)size.getLimitedValue(~0U);
   } else {
-    Diag(diag::warn_array_index_precedes_bounds)<< index.toString(10, true);
+    Diag(diag::warn_array_index_precedes_bounds)<< index.intVal.uintValue;//toString(10, true);
   }
 
 }
 
-ExprResult
-Sematic::analyzeArraySubscript(ExprNode *Base, SourceLocation LLoc,
-                              ExprNode *Idx, SourceLocation RLoc) {
-  ExprNode* LHSExp = Base;
-  ExprNode* RHSExp = Idx;
+ExprResult Sematic::analyzeArraySubscript(ExprResult base, ExprResult idx) {
+  ExprNode* lhsExp = base.get();
+  ExprNode* rhsExp = idx.get();
 
-  QualType LHSTy = LHSExp->getType(), RHSTy = RHSExp->getType();
+  QualType lhsTy = lhsExp->getQualType(), rhsTy = rhsExp->getQualType();
 
   // C99 6.5.2.1p2: the expression e1[e2] is by definition precisely equivalent
   // to the expression *((e1)+(e2)). This means the array "Base" may actually be
   // in the subscript position. As a result, we need to derive the array base
   // and index from the expression types.
-  QualType ResultType;
-  if (LHSTy->isArrayElement()) {
+  QualType resultType;
+  if (lhsTy.isArrayElement()) {
     // C99 6.5.2.1p1
-    if(!IndexExpr->getType()->isIntegerType() ) {
+    if(!rhsTy.isIntegerType() ) {
       Diag(diag::err_typecheck_subscript_not_integer);
       return ExprError();
     }
-    ResultType = LHSExp->getType();
+    resultType = lhsExp->getQualType();
   } else {
     Diag(diag::err_typecheck_subscript_value);
     return ExprError();
   }
-  return Owned(new ArraySubscriptExpr(LHSExp, RHSExp, ResultType, RLoc));
+  return Owned(new ArraySubscriptExpr(lhsExp, rhsExp, resultType));
 }
 
-ExprResult Sematic::analyzeUnaryOperator(SourceLocation OpLoc, tok::TokenKind Kind, ExprNode* InputExpr) {
-  UnaryOperatorKind Opc =  getUnaryOpcode(Kind);
+ExprResult Sematic::analyzeUnaryOperator(Token::TokenTag Kind, ExprNode* InputExpr) {
+  OperatorKind Opc =  getUnaryOpcode(Kind);
   ExprResult Input = Owned(InputExpr);
   QualType resultType;
   switch (Opc) {
   case kUOPlus:
   case kUOMinus:
+    {
     //Input = unaryConversions(Input.take());
-    if (Input.isInvalid()) return ExprError();
-    resultType = Input.get()->getType();
-    if (resultType->isArithmeticType() ) 
-      break;
+      if (Input.isInvalid()) return ExprError();
+      resultType = Input.get()->getQualType();
+      if (resultType.isArithmeticType() ) 
+        break;
 
-    Diag(diag::err_typecheck_unary_expr) << resultType;
-    return ExprError();
+      Diag(diag::err_typecheck_unary_expr) << resultType.get()->getTypeLiteral();
+      return ExprError();
+    }
     //return ExprError(Diag(OpLoc, diag::err_typecheck_unary_expr)
     //  << resultType << Input.get()->getSourceRange());
 
   case kUOLNot: // logical negation
+    {
     // Unlike +/-/~, integer promotions aren't done here (C99 6.5.3.3p5).
     //Input = DefaultFunctionArrayLvalueConversion(Input.take());
     //if (Input.isInvalid()) return ExprError();
-    resultType = Input.get()->getType();
-    if (!resultType->isBooleanType() ) {
-      // C99 6.5.3.3p1: ok, fallthrough;
-      Diag(diag::err_typecheck_unary_expr) << resultType;
-      return ExprError();
+      resultType = Input.get()->getQualType();
+      if (!resultType.get()->isBooleanType() ) {
+        // C99 6.5.3.3p1: ok, fallthrough;
+        Diag(diag::err_typecheck_unary_expr) << resultType.get()->getTypeLiteral();
+        return ExprError();
+      }
     }
     
     // LNot always has type int. C99 6.5.3.3p5.
     // In C++, it's bool. C++ 5.3.1p8
     //resultType = Context.getLogicalOperationType();
     break;
+  default:
+    break;
+  }
 
   if (resultType.isNull() || Input.isInvalid())
     return ExprError();
@@ -539,23 +531,23 @@ ExprResult Sematic::analyzeUnaryOperator(SourceLocation OpLoc, tok::TokenKind Ki
   // that are explicitly defined as valid by the standard).
   CheckArrayAccess(Input.get() );
 
-  return Owned(new UnaryOperatorExpr(Input.take(), Opc, resultType, OpLoc) );
+  return Owned(new UnaryOperatorExpr(Input.get(), Opc, resultType) );
 }
 
-ExprResult Sematic::analyzeBuiltinCallExpr(ExprResult& fnLhs, ExprVector& args){
+ExprResult Sematic::analyzeBuiltinCallExpr(ExprResult& fnLhs, ExprVector& args) {
   unsigned NumArgs = args.size();
   BuiltinCallExpr* Fn = static_cast<BuiltinCallExpr*>(fnLhs.get() );
 
   FunctionDecl* FDecl = Fn->getFuncDecl();
-  if (FDecl)
+  if (!FDecl)
     return ExprError();
 
-  unsigned BuiltinID = FDecl->getBuiltinID();
-  if (!BuiltinID)
-  {
-    return ExprError();
-  }
-  
+  //unsigned BuiltinID = FDecl->getBuiltinID();
+  //if (!BuiltinID)
+  //{
+  //  return ExprError();
+  //}
+  //
   // We know the result type of the call, set it.
   Fn->setResultType(FDecl->getCallResultType() );
   // C99 6.5.2.2p7 - the arguments are implicitly converted, as if by
@@ -569,7 +561,7 @@ ExprResult Sematic::analyzeBuiltinCallExpr(ExprResult& fnLhs, ExprVector& args){
     return ExprError();
   }
   for (unsigned i = 0; i != NumArgs; i++) {
-    ExprNode *Arg = Args[i];
+    ExprNode *Arg = args[i].get();
 
     CheckArrayAccess(Arg);
     ExprResult ArgE = parameterConversion(Owned(Arg), FDecl->getArgType(i) );
@@ -578,32 +570,34 @@ ExprResult Sematic::analyzeBuiltinCallExpr(ExprResult& fnLhs, ExprVector& args){
     
     Fn->setArg(i, ArgE);
   }
-  return Fn.move();
+  return ExprResult(Fn);
 }
 
-ExprResult Sematic::parameterConversion(const ExprResult& Arg, const QualType& protoType){
-  ExprResult retArg = Arg.move();
-  QualType argType = retArg.get()->getQualType();
-  CastKind ick = implicitCast(argType, protoType);
-  if (ick == kCastIncompatible){
-    //diag(argType not suitable for protoType);
-    Diag(diag::err_no_argument_conv)<<argType << protoType;
-    return ExprError();
-  } else if (ick != kCastNoOp){
-    return createCastExprByType(retArg, protoType, ick);(sema.cpp)
-   }
-   return Arg;
+ExprResult Sematic::parameterConversion(const ExprResult& Arg, const QualType& protoType) {
+  QualType argType = Arg.get()->getQualType();
+  if (!argType.isEqual(protoType))
+  {
+    CastKind ick = implicitCast(argType, protoType);
+    if (ick == kCastIncompatible) {
+      //diag(argType not suitable for protoType);
+      Diag(diag::err_no_argument_conv) << argType.get()->getTypeLiteral() << protoType.get()->getTypeLiteral();
+      return ExprError();
+    } else if (ick != kCastNoOp) {
+      return createCastExprByType(Arg.get(), protoType, ick);//(sema.cpp)
+    }
+  }
+  return Arg;
 }
 
 ExprResult Sematic::createCastExprByType(ExprNode *E, QualType Ty, CastKind Kind){
-  if (E->getType() == Ty)
+  if (E->getQualType().isEqual(Ty) )
     return Owned(E);
-  if (E->getCastKind() == Kind){
-    E->setType(Ty);
+  if (E->getCastKind() == Kind) {
+    E->setResultType(Ty);
     return Owned(E);
   }
 
-  return Owned(new CastExpr(Ty, Kind, E) );
+  return Owned(new CastExpr(Ty, Kind, ExprResult(E) ) );
 }
 
 QualType Sematic::arithIntegerCast(ExprResult& lhsExpr, ExprResult& rhsExpr) {
@@ -612,37 +606,39 @@ QualType Sematic::arithIntegerCast(ExprResult& lhsExpr, ExprResult& rhsExpr) {
   if (lhsTy.isIntegerType() && rhsTy.isIntegerType() ){
     int compare = getIntegerTypeRank(lhsTy, rhsTy);
     if (compare >= 0) {
-      rhsExpr = createCastExprByType(rhsExpr.take(), lhsTy, kCastIntegral);
+      rhsExpr = createCastExprByType(rhsExpr.get(), lhsTy, kCastIntegral);
       return lhsTy;
     } else {
-      lhsExpr = createCastExprByType(lhsExpr.take(), rhsTy, kCastIntegral);
+      lhsExpr = createCastExprByType(lhsExpr.get(), rhsTy, kCastIntegral);
       return rhsTy;
     }
   }
+  return lhsTy;
 }
 
-CastKind Sematic::implicitCast(QualType& FromType, const QualType& ToType){
+CastKind Sematic::implicitCast(QualType& fromType, const QualType& toType) {
   CastKind ICK = kCastNoOp;
-  if (getIntegerTypeRank(FromType, ToType) > 0) {
+  //if (getIntegerTypeRank(fromType, toType) > 0) {
     // Integral promotion (C++ 4.5).
+  if (fromType.isIntegerType() && toType.isIntegerType() ) {
     ICK = kCastIntegral;
-    FromType = ToType;
-  } else if (FromType->isFloatingType() &&
-    ToType->isIntegralType() ) {
+    fromType = toType;
+  } else if (fromType.get()->isFloatingType() &&
+    toType.isIntegerType() ) {
       // Floating-integral conversions (C++ 4.9).
       ICK = kCastFloatingToIntegral;
-      FromType = ToType;
-  } else if (FromType->isIntegralType() &&
-    ToType->isFloatingType() ){
+      fromType = toType;
+  } else if (fromType.isIntegerType() &&
+    toType.get()->isFloatingType() ){
     ICK = kCastIntegralToFloating;
-    FromType = ToType;
+    fromType = toType;
   } else {
     ICK = kCastIncompatible;
   }
   return ICK;
 }
 
-static inline OperatorKind getBinaryOpcode(const TokenKind Kind) {
+OperatorKind Sematic::getBinaryOpcode(const Token::TokenTag Kind) {
   OperatorKind Opc;
   switch (Kind) {
   default: assert(0 && "Unknown binop!");
@@ -669,16 +665,18 @@ static inline OperatorKind getBinaryOpcode(const TokenKind Kind) {
   }
   return Opc;
 }
-static inline OperatorKind getUnaryOpcode(TokenKind Kind) {
+
+OperatorKind Sematic::getUnaryOpcode(const Token::TokenTag Kind) {
   OperatorKind Opc;
   switch (Kind) {
   default: assert(false && "Unknown unary op!");
   case Token::plus:         Opc = kUOPlus; break;
   case Token::minus:        Opc = kUOMinus; break;
-  case Token::tilde:  
-  case Token::exclaim:      Opc = kUOLNot; break;
+  case Token::tilde:  Opc = kUOLNot; break;
+  //case Token::exclaim:      
   }
   return Opc;
 }
+
 }
 }

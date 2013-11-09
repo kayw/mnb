@@ -1,8 +1,12 @@
+#include "lexer.h"
+#include "symbols.h"
+
 namespace mnb{
 namespace expr{
+
 Token* Lexer::scan(){
   const char* curPtr = bufferPtr_;
-  for (; curPtr == ' ' || curPtr == '\t'; ++curPtr)
+  for (; *curPtr == ' ' || *curPtr == '\t'; ++curPtr, ++bufferPtr_)
     ;
   tokenColumn_ = curPtr - bufferBegin_;
   char peek = advanceChar(curPtr);
@@ -10,7 +14,7 @@ Token* Lexer::scan(){
   switch(peek){
     case '0': case '1': case '2': case '3':case '4':
     case '5': case '6': case '7': case '8':case '9':
-      return lexNumericToken(curPtr);
+      return lexNumericToken(--curPtr);
   case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G':
   case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N':
   case 'O': case 'P': case 'Q': case 'R': case 'S': case 'T': case 'U':
@@ -19,7 +23,7 @@ Token* Lexer::scan(){
   case 'h': case 'i': case 'j': case 'k': case 'l': case 'm': case 'n':
   case 'o': case 'p': case 'q': case 'r': case 's': case 't': case 'u':
   case 'v': case 'w': case 'x': case 'y': case 'z'://  case '_':
-      return lexIdentifier(curPtr);
+      return lexIdentifier(--curPtr);
  // case '"':
  //     return lexStringLiteral(tok);
   case '[':
@@ -33,6 +37,12 @@ Token* Lexer::scan(){
       break;
   case ')':
       tag = Token::r_paren;
+      break;
+  case '{':
+      tag = Token::l_brace;
+      break;
+  case '}':
+      tag = Token::r_brace;
       break;
   case '~':
       tag = Token::tilde;
@@ -112,6 +122,9 @@ Token* Lexer::scan(){
         tag = Token::pipe;
       }
       break;
+  case ',':
+      tag = Token::comma;
+      break;
   default:
       tag = Token::unknown;
       break;
@@ -120,28 +133,28 @@ Token* Lexer::scan(){
   return new Token(tag);
 }
 
-Token* Lexer::lexNumericToken(const char* curPtr){//todo: check over under flow hex octal diag
+Token* Lexer::lexNumericToken(const char*& curPtr){//todo: check over under flow hex octal diag
   char ch = 0;
-  Integer v = 0;
-  readNumeric(curPtr, ch, v);
+  uint32_t v = 0;
+  readNumeric(curPtr, ch, &v);
   const char* dotPtr = curPtr;
   if (ch == '.') {
     curPtr = consumeNextChar(curPtr);
-    if (!isdigit(getNextChar(curPtr) ) {
+    if (!isdigit(getNextChar(curPtr) ) ){
       //errorReport.fill("no digits after float %d's dot", v);
-      errorReport.diagnose(kFloatNoDigital, tokenColumn_) << v;
+      //errorReport.diagnose(kFloatNoDigital, tokenColumn_) << v;
       Diag(diag::err_illegal_float_dot_part) << v;
     }
-    readNumeric(curPtr, ch, v);
+    readNumeric(curPtr, ch, &v);
   }
-  exponent_t realexpon = static_cast<exponent_t>(dotPtr - curPtr);
+  exponent_t realexpon = static_cast<exponent_t>(dotPtr - curPtr + 1);
   if (ch == 'e' || ch == 'E') {
     curPtr = consumeNextChar(curPtr);
     realexpon += readExponent(curPtr);
   }
   bufferPtr_ = curPtr;
   if (dotPtr == curPtr) {
-    return (Token*)new Num(v);
+    return new Num(v);
   }
   else{
     double f = v * pow(10, realexpon);
@@ -149,22 +162,22 @@ Token* Lexer::lexNumericToken(const char* curPtr){//todo: check over under flow 
   }
 }
 
-void Lexer::readNumeric(const char* curPtr, char& peek, Integer& inital){
+void Lexer::readNumeric(const char*& curPtr, char& peek, uint32_t* inital){
   char ch = getNextChar(curPtr);
   while(isdigit(ch) ){
     curPtr = consumeNextChar(curPtr);
-    inital = inital*10 + ch - '0';
+    *inital = *inital*10 + ch - '0';
     ch = getNextChar(curPtr);
   }
   peek = ch;
 }
 
-exponent_t Lexer::readExponent(const char* curPtr) {
+Lexer::exponent_t Lexer::readExponent(const char*& curPtr) {
   char ch = getNextChar(curPtr);
   int tooLargeExponent = 24000;
   bool isNegative = (ch == '-');
   if (ch == '-' || ch == '+') {
-    consumeNextChar(curPtr);
+    curPtr = consumeNextChar(curPtr);
   }
   ch = getNextChar(curPtr);
   exponent_t expon = 0;
@@ -180,15 +193,15 @@ exponent_t Lexer::readExponent(const char* curPtr) {
   return (isNegative ? -expon : expon);
 }
 
-Token* Lexer::lexIdentifier(const char* curPtr){
+Token* Lexer::lexIdentifier(const char*& curPtr){
   unsigned char ch = *curPtr++;
   while(isalpha(ch) || ch == '_')
     ch = *curPtr++;
   --curPtr;
-  string identifier_name(bufferPtr_, curPtr - bufferPtr_);//todo:stringref
-  IdentiferInfo& ii = identifier_table_.lookupIdentifier(identifier_name);
+  std::string identifier_name(bufferPtr_, curPtr - bufferPtr_);//todo:stringref
+  const IdentifierInfo* pii = identifier_table_.lookupIdentifier(identifier_name);
   bufferPtr_ = curPtr;
-  return (Token*)new Word(identifier_name, &ii);
+  return (Token*)new Word(identifier_name, pii);
 }
 }
 }

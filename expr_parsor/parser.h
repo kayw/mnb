@@ -1,121 +1,96 @@
+#ifndef PARSER_H_BD268073_D685_494F_8AAE_64A53D2D9DCE
+#define PARSER_H_BD268073_D685_494F_8AAE_64A53D2D9DCE
+
+#include "lexer.h"
+#include "symbols.h"
+#include "sematics.h"
+
 namespace mnb{
 namespace expr{
-#include "symbols.h"
-#include "lexer.h"
 class Parser{
   public:
   enum BinaryPreced{
     kUnknown      = 0,  // not binaray operator
-    kComma        = 1,  // ,
-    kLogicalOR    = 2,  // OR ||
-    kLogicalAND   = 3,  // AND &&
-    kInclusiveOR  = 4,  // |
-    kInclusiveXOR = 5,  // XOR ^
-    kInclusiveAND = 6,  // &
-    kEquality     = 7,  // <> != ==
-    kRelational   = 8,  // > >= < <= 
-    kShift        = 9,  // >> <<
-    kAdditive     = 10, // + -
-    kMultiplicate = 11, // * / MOD %
+    kAssign       ,
+    kComma        ,  // ,
+    kLogicalOR    ,  // OR ||
+    kLogicalAND   ,  // AND &&
+    kInclusiveOR  ,  // |
+    kInclusiveXOR ,  // XOR ^
+    kInclusiveAND ,  // &
+    kEquality     ,  // <> != ==
+    kRelational   ,  // > >= < <= 
+    kShift        ,  // >> <<
+    kAdditive     , // + -
+    kMultiplicate , // * / MOD %
 //    kLogicalNOT   = 12, // NOT ~
 //    kBuiltinCalls = 13, // sin
   };
 
-  Parser(Lexer l)
-    :lexer_(l)
-    ,lookahead_(NULL){
-    //lexer_ = l;
-    ConsumeToken();// prime token
-  }
-  void ConsumeToken(){
-    if(lookahead_)
-      lookahead_->release();
-    lookahead_ = lexer_.scan();
-  }
-  Token nextLookAheadToken(int aheadNum) {
-    Token* tmp;
-    for (int i = 0; i < aheadNum; ++i){
-      tmp = lexer_.scan();
-      cachedLookAheads_.push_back(tmp);
-    }
-    return tmp;
-  }
+  explicit Parser(ErrorReport& reporter)
+    :Er_(reporter), lookahead_(NULL), pLexer_(NULL) {} 
 
-  void matchRHSPunct(Token::TokenTag t){
-    if (lookahead_.tag_ == t)
-      ConsumeToken();
-    else
-      //error("Parser expect token " << getNameByTag(t) << ",but next token is " << getNameByTag(lookahead_.tag_) );
-      Diag(diag::err_expected_token) << t;
-  }
-  void Diag(int32_t errid){
-    l.Diag(errid);
-  }
-
-  bool skipUntil(Token::TokenTag t){
-    while(lookahead_.isNot(t) && lookahead_.isNot(Token::unknown)){
-      ConsumeToken();
-    }
-    return lookahead_.is(t);
-  }
+  ExprResult ParseExpression(const MString& exprStr);
 
 
   private:
-  Sematic sema_;
-  ErrorReporter Er_;
-  Token* lookahead_;
-  std::vector<Token*> cachedLookAheads_;
-  IdentifierTable symbol_table_;
-  //ExprResult parseExpression(){
-  //  decls();
-  //  Expr E = boolExpression();
-  //  return E.Eval();
-  //}
-  //void parseDecls(){ // D->type ID
-  //  while(lookahead_.tag_ == Token::kw_TYPE){
-  //    Type* t = declType();
-  //    Token tok = lookahead_;
-  //    match(Token::identifer);
-  //    match(Token::semi);
-  //    ID* id = new ID((Word*)tok, t);
-  //    identifier_table_[tok] = id;
-  //    used_ += p.width_;
-  //  }
-  //}
-  //Type* parseDeclType(){
-  //  Type* pT = (Type*)lookahead_;
-  //  match(Token::kw_TYPE);
-  //  if (lookahead_.tag_ != '[') {
-  //    return pT;
-  //  }
-  //  else{
-  //    return dimType(pT);
-  //  }
-  //}
-  //Type* parseDimType(Type* pT){
-  //  match('[');
-  //  Token tok = lookahead_;
-  //  match(Token::numeric);
-  //  match(']');
-  //  if (lookahead_.tag_ == '[') {
-  //    pT = parseDimType(pT);
-  //  }
-  //  return new Array1D((Num)tok.value_, pT);
-  //}
+    Sematic sema_;
+    ErrorReport& Er_;
+    Token* lookahead_;
+    std::vector<Token*> cachedLookAheads_;
+    IdentifierTable symbol_table_;
+    Lexer* pLexer_;// as a pointer refrence the scope lexer
 
-  //ExprResult* parseBoolLiteral();
-  //ExprResult* parseAssignment();
-  //ExprResult* parseLogicalOR();
-  //parseLogicalAnd();
-  //parseNot();
-  //parseEquality();
-  //parseRelational();
-  //parseShift();
-  //parseTerm();
-  //parseUnary();
-  //parseFunction();
-  //parseFactor();
+    bool skipUntil(Token::TokenTag t) {
+      while(!lookahead_->is(t) && !lookahead_->is(Token::unknown)){
+        ConsumeToken();
+      }
+      return lookahead_->is(t);
+    }
 
-  ExprResult parseExpression();
-  ExprResult parseAssignment();
-  ExprResult parseBinaryExprRHS(ExprResult lhs, BinaryPreced minPrec);
+    void ConsumeToken() {
+      if(lookahead_)
+        lookahead_->release();
+      lookahead_ = pLexer_->scan();
+    }
+
+    Token* nextLookAheadToken(int aheadNum) {
+      Token* tmp;
+      for (int i = 0; i < aheadNum; ++i){
+        tmp = pLexer_->scan();
+        cachedLookAheads_.push_back(tmp);
+      }
+      return tmp;
+    }
+
+    void matchRHSPunct(Token::TokenTag t) {
+      if (lookahead_->is(t) )
+        ConsumeToken();
+      else
+        //error("Parser expect token " << getNameByTag(t) << ",but next token is " << getNameByTag(lookahead_.tag_) );
+        Diag(diag::err_expected_token) << t;
+    }
+
+    ErrorBuilder Diag(int32_t errid){
+      return pLexer_->Diag(errid);
+    }
+
+    void parseDeclarator();
+    void parseBracketDeclarator(Declarator& D);
+    ExprResult parseInitializer();
+    ExprResult parseBraceInitialier();
+    bool isDeclarationSpecifier();
+    QualType parseDeclSpecifier();
+    ExprResult parseAssignment();
+    ExprResult parseParenExpression();
+    ExprResult parsePostfixSuffix(ExprResult Lhs);
+    bool parseExprListFailed(ExprVector& exprs);
+    ExprResult parseBinaryExprRHS(ExprResult lhs, BinaryPreced minPrec);
+    static BinaryPreced getBinOpPrecedence(const Token::TokenTag kind);
+};
+
+}
+}
+
+#endif /* PARSER_H_BD268073_D685_494F_8AAE_64A53D2D9DCE */
+
