@@ -195,7 +195,7 @@ Lexer::exponent_t Lexer::readExponent(const char*& curPtr) {
 
 Token* Lexer::lexIdentifier(const char*& curPtr){
   unsigned char ch = *curPtr++;
-  while(isalpha(ch) || ch == '_')
+  while(isalpha(ch) || isdigit(ch) || ch == '_')
     ch = *curPtr++;
   --curPtr;
   std::string identifier_name(bufferPtr_, curPtr - bufferPtr_);//todo:stringref
