@@ -103,10 +103,12 @@ ExprResult Parser::parseBraceInitialier(){
         skipUntil(Token::r_brace);
         break;
       }
-    } else if (subElt->getExprClass() == ExprNode::kInitExprsClass) { 
-      Diag(diag::err_braceinitialiazer_is_initexpr);
-      break;
-    } else {
+    }
+    //else if (subElt->getExprClass() == ExprNode::kInitExprsClass) { 
+    //  Diag(diag::err_braceinitialiazer_is_initexpr);
+    //  break;
+    //}
+    else {
       InitExprVec.push_back(subElt);
     }
     if (!lookahead_->is(Token::comma) ) break;
@@ -196,14 +198,14 @@ ExprResult Parser::parsePostfixSuffix(ExprResult Lhs){
           matchRHSPunct(Token::l_square);
           ExprResult idx = parseAssignment();
           if (!Lhs.isInvalid() && !idx.isInvalid() && lookahead_->is(Token::r_square) ) {
-            Lhs = sema_.analyzeArraySubscript(Lhs, idx);
+            Lhs = sema_.analyzeArraySubscript(Lhs, idx);//TODO array in array lhs in lhs need assign initializer one by one
           } else{
             Lhs = ExprError();
           }
           matchRHSPunct(Token::r_square);
         }
         break;
-      case Token::l_paren: {
+      case Token::l_paren: { // function parameter list
           matchRHSPunct(Token::l_paren);
           ExprVector args;
           if (!Lhs.isInvalid() && parseExprListFailed(args) ) {

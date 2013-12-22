@@ -810,7 +810,7 @@ class VarDecl : public ExprNode {
       if (isArrayVar()) {
         InitExprs *pInitializer = static_cast<InitExprs*>(initialier.get());
         const std::vector<ExprNode*>& exprList = pInitializer->getInitNodeList();
-        getQualType().setArraySize(exprList.size());
+        getQualType().setArraySize(exprList.size());// 2d array need fulfill value in lhsexpr in lhsexpr TODO
       }
       pVarValue_ = initialier.move();//todo checkAssignmentOperands Constant with Type??
     }

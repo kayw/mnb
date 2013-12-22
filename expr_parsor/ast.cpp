@@ -323,11 +323,12 @@ ExprValue UnaryOperatorExpr::evaluate(){
 }
 
 ExprValue ArraySubscriptExpr::evaluate() {
-  const std::vector<ExprValue>& evv = baseExpr_->getInitValueList();
-  ExprValue ev = indexExpr_->evaluate();
-  ev = evv[ev.intVal.uintValue];
-  success(ev);
-  return ev;
+  //const std::vector<ExprValue>& evv = baseExpr_->getInitValueList();
+  const std::vector<ExprNode*>& exprNodeVec = baseExpr_->getInitExprVec();
+  ExprValue idxValue = indexExpr_->evaluate();
+  assert(exprNodeVec.size() > idxValue.intVal.uintValue);
+  ExprNode* pSubExpr = exprNodeVec[idxValue.intVal.uintValue];
+  return pSubExpr->evaluate();
 }
 
 ExprValue VarDecl::evaluate() {
