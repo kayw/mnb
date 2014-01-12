@@ -80,7 +80,7 @@ clean:
 ALL := $(SRC) $(HEADER) $(UT_SRC)
 
 todo:
-	-@for file in $(ALL:makefile=); do fgrep -H -i -e TODO -e FIXME $$file; done; true
+	-@for file in $(ALL:makefile=); do ack -H -i "TODO|FIXME" $$file; done; true
 #http://wiki.osdev.org/Makefile
 #http://stackoverflow.com/questions/6153334/making-a-better-makefile
 #http://damienradtke.org/a-generic-cc-linux-project-makefile/

@@ -123,7 +123,7 @@ class HashIterator{
       node_ = node_->next_;
       return *this;
     }
-    HashIterator operator(int){
+    HashIterator operator()(int){
       HashIterator t(*this);
       ++(*this);
       return t;
@@ -136,7 +136,8 @@ class HashIterator{
     HashIterator(NodePtr p)
       : node_(p){}
     NodePtr node_;
-}
+};
+
 template<class ConstNodePtr, class NodePtr>
 class HashConstIterator{
   public:
