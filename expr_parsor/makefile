@@ -1,4 +1,5 @@
-CC = gcc#clang
+#CC = gcc#clang
+CC = clang
 #CMDFLAG = -x c++
 #CXX = clang
 WARNING := -Wall -Wextra
@@ -13,7 +14,7 @@ DBGFLAG := -g
 RELFLAG :=
 
 SRC := $(wildcard *.cpp)
-HEADER := $(shell find . -type f -name "\*.h")
+HEADER := $(shell find . -type f -name "*.h")
 
 DBG_OBJs := $(patsubst %.cpp,obj/debug/%.o,$(SRC))
 REL_OBJs := $(patsubst %.cpp,obj/release/%.o,$(SRC))

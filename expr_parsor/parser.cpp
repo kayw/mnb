@@ -198,7 +198,7 @@ ExprResult Parser::parsePostfixSuffix(ExprResult Lhs){
           matchRHSPunct(Token::l_square);
           ExprResult idx = parseAssignment();
           if (!Lhs.isInvalid() && !idx.isInvalid() && lookahead_->is(Token::r_square) ) {
-            Lhs = sema_.analyzeArraySubscript(Lhs, idx);//TODO array in array lhs in lhs need assign initializer one by one
+            Lhs = sema_.analyzeArraySubscript(Lhs, idx);
           } else{
             Lhs = ExprError();
           }

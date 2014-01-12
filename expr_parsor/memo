@@ -1,9 +1,9 @@
 vim:
-snipmate\ultisnip cleanup
+//snipmate\ultisnip cleanup
 
 
 //SourceLocation parameter sematics cleanup
-parser complete declaration
+//parser complete declaration
 //vardecl  exprnode exprclass
 //InitExprs ArraySubscriptExpr
 //isConstantZero ExprResult
@@ -12,6 +12,7 @@ parser complete declaration
 //Diagnose how errorreporter
 //location tip
 
+//makefile todo: ALL not include files after SRC
 
 
 builtinid -> polymorphic loader

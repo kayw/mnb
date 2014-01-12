@@ -39,11 +39,22 @@ ExprResult QualType::createDefaultInit(IdentifierTable& table) {
   }
 }
 
-void QualType::setArraySize(const int32_t newSize) {
+void QualType::setArraySize(const std::vector<ExprNode*>* pInitList) {
   assert(isArrayElement());
-  ConstArrayType* pArrayType = static_cast<ConstArrayType*>(pType_);
-  pArrayType->setArraySize(newSize); 
+  ConstArrayType* pArrayType = dynamic_cast<ConstArrayType*>(pType_);
+  int32_t newSize = pInitList->size();
+  ExprNode* pSubInit = newSize ? (*pInitList)[0] : NULL;
+  pArrayType->setArraySize(newSize, pSubInit); 
 }
+
+void ConstArrayType::setArraySize(const int32_t newSize, const ExprNode* pSubInit) {
+  arraySize_ = newSize; 
+  if (pSubInit && pSubInit->getExprClass() == ExprNode::kInitExprsClass) {
+    const InitExprs* pInitExpr = dynamic_cast<const InitExprs*>(pSubInit);
+    elemBase_.setArraySize(pInitExpr->getInitExprVec() );
+  }
+}
+
 MString ConstArrayType::getTypeLiteral() const { // FIXME: mstring format
   std::ostringstream ss;
   ss << arraySize_ << " dimensional of array " << elemBase_.get()->getTypeLiteral();
@@ -324,11 +335,48 @@ ExprValue UnaryOperatorExpr::evaluate(){
 
 ExprValue ArraySubscriptExpr::evaluate() {
   //const std::vector<ExprValue>& evv = baseExpr_->getInitValueList();
-  const std::vector<ExprNode*>& exprNodeVec = baseExpr_->getInitExprVec();
+  //const std::vector<ExprNode*>& exprNodeVec = baseExpr_->getInitExprVec();
+  //ExprValue idxValue = indexExpr_->evaluate();
+  //assert(exprNodeVec.size() > idxValue.intVal.uintValue);
+  //ExprNode* pSubExpr = exprNodeVec[idxValue.intVal.uintValue];
+  //return pSubExpr->evaluate();
+  const std::vector<ExprNode*>* pExprNodeVec = NULL;
+  if (baseExpr_->getExprClass() == kArraySubscriptExprClasss)
+  {
+    ArraySubscriptExpr* pArrayExpr = dynamic_cast<ArraySubscriptExpr*>(baseExpr_);
+    InitExprs* pSubExpr = pArrayExpr->getLowRankInitial();
+    pExprNodeVec = pSubExpr->getInitExprVec();
+  }
+  else if (baseExpr_->getExprClass() == kVarDeclClass)
+  {
+    VarDecl* pSubVarDecl = dynamic_cast<VarDecl*>(baseExpr_);
+    pExprNodeVec = pSubVarDecl->getInitExprVec();
+  }
+  assert(pExprNodeVec);
   ExprValue idxValue = indexExpr_->evaluate();
-  assert(exprNodeVec.size() > idxValue.intVal.uintValue);
-  ExprNode* pSubExpr = exprNodeVec[idxValue.intVal.uintValue];
+  assert(pExprNodeVec->size() > idxValue.intVal.uintValue);
+  ExprNode* pSubExpr = (*pExprNodeVec)[idxValue.intVal.uintValue];
+  assert(pSubExpr->getExprClass() != kInitExprsClass);
   return pSubExpr->evaluate();
+}
+
+InitExprs* ArraySubscriptExpr::getLowRankInitial() {
+  if (baseExpr_->getExprClass() == kArraySubscriptExprClasss)
+  {
+     ArraySubscriptExpr* pArrayExpr = dynamic_cast<ArraySubscriptExpr*>(baseExpr_);
+     InitExprs* pSubInit = pArrayExpr->getLowRankInitial();
+     assert(pSubInit);
+     const std::vector<ExprNode*>* pExprNodeVec = pSubInit->getInitExprVec();
+     ExprValue idxValue = indexExpr_->evaluate();
+     assert(pExprNodeVec->size() > idxValue.intVal.uintValue);
+     ExprNode* pSubExpr = (*pExprNodeVec)[idxValue.intVal.uintValue];
+     return dynamic_cast<InitExprs*>(pSubExpr);
+  }
+  else if (baseExpr_->getExprClass() == kVarDeclClass)
+  {
+    VarDecl* pSubVarDecl = dynamic_cast<VarDecl*>(baseExpr_);
+    return pSubVarDecl->getInitVar();
+  }
 }
 
 ExprValue VarDecl::evaluate() {

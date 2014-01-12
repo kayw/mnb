@@ -503,6 +503,7 @@ class DeclType : public Type {
 };
 
 class ExprResult;
+class ExprNode;
 class QualType{
   public:
     QualType()
@@ -527,8 +528,8 @@ class QualType{
     }
     bool isNull() const     { return NULL == pType_; }
     bool isEqual(const QualType& rhs) const   { return pType_ == rhs.pType_;  } //todo compare type content rethink
-    void setArraySize(const int32_t newSize); 
-    ExprResult createDefaultInit(IdentifierTable& table);//todo
+    void setArraySize(const std::vector<ExprNode*>* pInitList); 
+    ExprResult createDefaultInit(IdentifierTable& table);
   private:
     Type *pType_;
 };
@@ -548,7 +549,7 @@ class ConstArrayType : public Type{
     virtual bool isSigned() const         { return false; }//todo
 
     int32_t getArraySize() const { return arraySize_; }
-    void setArraySize(const int32_t newSize)  { arraySize_ = newSize; }
+    void setArraySize(const int32_t newSize, const ExprNode* pSubInit); 
   private:
     QualType elemBase_;
     int32_t arraySize_;
@@ -769,6 +770,7 @@ class BuiltinCallExpr : public ExprNode{
     FunctionDecl* pFnDecl_;
 };
 
+class InitExprs;
 class ArraySubscriptExpr : public ExprNode{
   public:
     ArraySubscriptExpr(ExprNode* baseExpr, ExprNode* idxExpr, QualType& resultTy)
@@ -779,6 +781,7 @@ class ArraySubscriptExpr : public ExprNode{
     virtual ExprNode* getIdx() const    { return indexExpr_;    }
 
     virtual ExprValue evaluate();
+    InitExprs* getLowRankInitial();
   private:
     ExprNode* baseExpr_;
     ExprNode* indexExpr_;
@@ -795,7 +798,7 @@ class InitExprs: public ExprNode {
         exprValVec.push_back((*it)->evaluate() );
       return exprValVec;
     }
-    const std::vector<ExprNode*>& getInitNodeList() const { return initNodes_; }
+    const std::vector<ExprNode*>* getInitExprVec() const { return &initNodes_; }
 
   private:
     std::vector<ExprNode*> initNodes_;
@@ -808,18 +811,22 @@ class VarDecl : public ExprNode {
 
     void setInitialier(const ExprResult& initialier) {
       if (isArrayVar()) {
-        InitExprs *pInitializer = static_cast<InitExprs*>(initialier.get());
-        const std::vector<ExprNode*>& exprList = pInitializer->getInitNodeList();
-        getQualType().setArraySize(exprList.size());// 2d array need fulfill value in lhsexpr in lhsexpr TODO
+        InitExprs *pInitializer = dynamic_cast<InitExprs*>(initialier.get());
+        const std::vector<ExprNode*>* pExprList = pInitializer->getInitExprVec();
+        getQualType().setArraySize(pExprList);// 2d array need fulfill value in lhsexpr in lhsexpr TODO
+        //recursive setarraysize with vec passed
       }
       pVarValue_ = initialier.move();//todo checkAssignmentOperands Constant with Type??
     }
     bool isArrayVar() const {
       return getQualType().isArrayElement();
     }
-    virtual std::vector<ExprValue> getInitValueList() {
+    const std::vector<ExprNode*>* getInitExprVec() {
       assert(isArrayVar() );
-      return pVarValue_->getInitValueList();
+      return getInitVar()->getInitExprVec();
+    }
+    InitExprs* getInitVar() {
+      return dynamic_cast<InitExprs*>(pVarValue_);
     }
     virtual ExprValue evaluate();
   private:

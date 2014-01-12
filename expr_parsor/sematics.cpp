@@ -1,7 +1,7 @@
 #include "sematics.h"
 #include "symbols.h"
 #include "builtinfn.h"
-//using namespace mnb::expr;
+
 namespace mnb{
 namespace expr{
 
@@ -81,7 +81,7 @@ ExprResult Sematic::analyzeConstantLiteral(Token* pToken) {
 
 void Sematic::actOnUninitializedDecl(VarDecl* decl) {
   QualType T = decl->getQualType();
-  decl->setInitialier(T.createDefaultInit(*psymbol_table_) );
+  decl->setInitialier(T.createDefaultInit(*psymbol_table_) );//todo array type
 }
 
 ExprResult Sematic::analyzeBinaryOperator(const Token::TokenTag opTokKind, ExprResult& lhs, ExprResult& rhs){

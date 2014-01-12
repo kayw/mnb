@@ -44,7 +44,7 @@ class Declarator{
     const DeclaratorChunk& getChunckObject(int idx) const {
       assert(0 <= idx && idx < static_cast<int>(DeclInfo_.size() ) );
       return DeclInfo_[idx];
-    };
+    }
 
   private:
     const IdentifierInfo* pIdInfo_;
