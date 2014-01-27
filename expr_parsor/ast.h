@@ -65,6 +65,7 @@ class ExprValue {//todo move to cpp
       //  return floatVal < 0;
       } else{
         assert(false && "Value type must be INT");
+        return false;
       }
     }
     int32_t getValidBits() const{
@@ -751,7 +752,7 @@ class BuiltinCallExpr : public ExprNode{
       ,pFnDecl_(pFD) {
       arguments_.clear();
     }
-    void setArg(const int idx, ExprResult& arguE) {
+    void setArg(const int /*idx*/, ExprResult& arguE) {
       //arguments_[idx] = arguE;
       arguments_.push_back(arguE);
     }
