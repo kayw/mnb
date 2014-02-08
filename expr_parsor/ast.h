@@ -7,8 +7,8 @@
 #include <limits>
 #include "mmacros.h"
 #include "mstring.h"
-namespace mnb{
-namespace expr{
+namespace mnb {
+namespace expr {
 #define MAX_BITS 32
 enum TyKinds{
   kVoidTy,  kBoolTy,
@@ -398,7 +398,7 @@ class ExprValue {//todo move to cpp
       return ev;
     }
 
-    ExprValue bitOr(const ExprValue& Rhs) const{
+    ExprValue bitOr(const ExprValue& Rhs) const {
       assert((valueType == kIntTy) && (Rhs.valueType == kIntTy) && "bitwise OR operator is only suitable for INT" );
       //assert((Rhs.intVal.uintValue >= 0) && (intVal.uintValue >= 0) && "bitwise OR operand must be greater than or equal to 0");
       ExprValue ev;
@@ -408,12 +408,12 @@ class ExprValue {//todo move to cpp
       return ev;
     }
 
-    ExprValue logicalAnd(const ExprValue& Rhs) const{
+    ExprValue logicalAnd(const ExprValue& Rhs) const {
       assert((valueType != kFloatTy) && (Rhs.valueType != kFloatTy) && "logical AND operator is not suitable for FLOAT" );
       assert((valueType == Rhs.valueType) && "logical AND operands type must be same");
       ExprValue ev;
       ev.valueType = kBoolTy;
-      if (valueType == kIntTy){
+      if (valueType == kIntTy) {
         assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
         ev.boolVal = (intVal.uintValue && Rhs.intVal.uintValue);
       } else {
@@ -422,12 +422,12 @@ class ExprValue {//todo move to cpp
       return ev;
     }
 
-    ExprValue logicalOr(const ExprValue& Rhs) const{
+    ExprValue logicalOr(const ExprValue& Rhs) const {
       assert((valueType != kFloatTy) && (Rhs.valueType != kFloatTy) && "logical OR operator is not suitable for FLOAT" );
       assert((valueType == Rhs.valueType) && "logical OR operands type must be same");
       ExprValue ev;
       ev.valueType = kBoolTy;
-      if (valueType == kIntTy){
+      if (valueType == kIntTy) {
         assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
         ev.boolVal = (intVal.uintValue || Rhs.intVal.uintValue);
       } else {
@@ -437,13 +437,13 @@ class ExprValue {//todo move to cpp
     }
 
   private:
-    struct IntTy{
+    struct IntTy {
       bool isSigned;
       uint32_t uintValue;
     };
     bool evaluatable;
     TyKinds valueType;
-    union{
+    union {
       bool boolVal;
       IntTy intVal;
       float floatVal;
@@ -465,7 +465,7 @@ class ExprValue {//todo move to cpp
     friend class Sematic;
 };
 
-struct Type{
+struct Type {
   virtual MString getTypeLiteral() const = 0;
   virtual TyKinds getKind() const       = 0;
   virtual uint32_t getTypeWidth() const = 0;
@@ -505,7 +505,7 @@ class DeclType : public Type {
 
 class ExprResult;
 class ExprNode;
-class QualType{
+class QualType {
   public:
     QualType()
       :pType_(NULL) {}
@@ -528,7 +528,7 @@ class QualType{
       return pType_->isIntegerType() || pType_->isBooleanType();
     }
     bool isNull() const     { return NULL == pType_; }
-    bool isEqual(const QualType& rhs) const   { return pType_ == rhs.pType_;  } //todo compare type content rethink
+    bool isSameQualType(const QualType& rhs) const;
     void setArraySize(const std::vector<ExprNode*>* pInitList); 
     ExprResult createDefaultInit(IdentifierTable& table);
   private:
@@ -790,8 +790,8 @@ class ArraySubscriptExpr : public ExprNode{
 
 class InitExprs: public ExprNode {
   public:
-    explicit InitExprs(std::vector<ExprNode*>& initExprNodes)
-      :ExprNode(kInitExprsClass), initNodes_(initExprNodes) {}
+    explicit InitExprs(QualType T, std::vector<ExprNode*>& initExprNodes)
+      :ExprNode(T, kInitExprsClass), initNodes_(initExprNodes) {}
     virtual std::vector<ExprValue> getInitValueList() {
       std::vector<ExprValue> exprValVec;
       std::vector<ExprNode*>::iterator it = initNodes_.begin();
@@ -810,15 +810,8 @@ class VarDecl : public ExprNode {
     explicit VarDecl(QualType& T)
       :ExprNode(T, kVarDeclClass), pVarValue_(NULL) {}
 
-    void setInitialier(const ExprResult& initialier) {
-      if (isArrayVar()) {
-        InitExprs *pInitializer = dynamic_cast<InitExprs*>(initialier.get());
-        const std::vector<ExprNode*>* pExprList = pInitializer->getInitExprVec();
-        getQualType().setArraySize(pExprList);// 2d array need fulfill value in lhsexpr in lhsexpr TODO
-        //recursive setarraysize with vec passed
-      }
-      pVarValue_ = initialier.move();//todo checkAssignmentOperands Constant with Type??
-    }
+    int setInitialier(const ExprResult& initialier);
+
     bool isArrayVar() const {
       return getQualType().isArrayElement();
     }

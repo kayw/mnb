@@ -20,10 +20,12 @@ enum ErrorKind{
   err_typecheck_unary_expr,
   err_typecheck_subscript_not_integer,
   err_typecheck_subscript_value,
+  err_typecheck_initialier_different,
+  err_typecheck_mismatch_decl_type_assignment,
   err_expected_semi_or_equal_declaration,
   err_expect_identifer,
   err_expected_expression,
-  err_braceinitialiazer_is_initexpr,
+  err_empty_brace_initialiazer,
   err_illegal_float_dot_part,
   err_invalid_array_element_size,
   err_function_argument_num_unfit,
@@ -39,8 +41,7 @@ static const char* zero = digits + 9;
 const uint32_t kMaxNumericSize = 250U;
 // Efficient Integer to String Conversions, by Matthew Wilson.
 template<typename T>
-size_t formatInteger(char buf[], T value)
-{
+size_t formatInteger(char buf[], T value) {
   T i = value;
   char* p = buf;
 
@@ -61,22 +62,22 @@ size_t formatInteger(char buf[], T value)
 
 const uint32_t kMaxArguments = 10U;
 class ErrorReport;
-class ErrorBuilder{
+class ErrorBuilder {
   public:
     explicit ErrorBuilder(ErrorReport* pReport)
       : pReporter_(pReport) {}
     ~ErrorBuilder(); 
     //copied
-    ErrorBuilder(const ErrorBuilder& rhs){
+    ErrorBuilder(const ErrorBuilder& rhs) {
       pReporter_ = rhs.pReporter_;
       rhs.pReporter_ = NULL;
     }
     void addString(const MString& argu);
-    ErrorBuilder& operator<<(const MString& s){
+    ErrorBuilder& operator<<(const MString& s) {
       addString(s);
       return *this;
     }
-    ErrorBuilder& operator<<(const int32_t& i){
+    ErrorBuilder& operator<<(const int32_t& i) {
       char intStr[kMaxNumericSize] = {0};
       int len = formatInteger(intStr, i);
       addString(MString(intStr, len) );
@@ -89,14 +90,14 @@ class ErrorBuilder{
     void operator=(const ErrorBuilder& rhs); 
 };
 
-class ErrorReport{
+class ErrorReport {
   public:
     ErrorReport()
       :line_(0), column_(0), diagId_(0)
        ,argumentNum_(0) {}
     explicit ErrorReport(int32_t lineNo)
-      : line_(lineNo){}
-    ~ErrorReport() { }
+      : line_(lineNo) {}
+    ~ErrorReport() {}
     ErrorBuilder diagnose(int diagCode, int startColumn);
     void setLineNo(int32_t lineNo) { line_ = lineNo; }
     void addString(const MString& argu);

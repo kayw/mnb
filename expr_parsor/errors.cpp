@@ -8,18 +8,20 @@ static const char* ErrorMsg[] ={
   "shift count is negative", //warn_shift_negative
   "shift count >= width of type",                                                        //warn_shift_gt_typewidth,
   "left shift result bits is %0, but %2 has only %3 bits",                                //warn_shift_result_gt_typewidth,
-  "array index of '%0' indexes past the end of an array (that contains %1 elements)",   //warn_array_index_exceeds_bounds,
+  "array index of '%0' indexes past the end of an array (that contains %1 elements)",     //warn_array_index_exceeds_bounds,
   "array index of '%0' indexes before the beginning of the array",                        //warn_array_index_precedes_bounds,
-  "division by zero is undefined",                                                       //warn_division_by_zero,
-  "remainder by zero is undefined",                                                      //warn_remainder_by_zero,
+  "division by zero is undefined",                                                        //warn_division_by_zero,
+  "remainder by zero is undefined",                                                       //warn_remainder_by_zero,
   "invalid operands to binary expression (%0 and %1)",                                    //err_typecheck_invalid_operands,
   "invalid argument type %0 to unary expression",                                         //err_typecheck_unary_expr,
   "array subscript is not an integer",                                                    //err_typecheck_subscript_not_integer,
   "subscripted value is not an array",                                                    //err_typecheck_subscript_value,
+  "Number %0 initialier don't have the qualified type",                                       //err_typecheck_initialier_different
+  "Right-side assignment type %0 don't match the decl type %1",          //err_typecheck_mismatch_decl_type_assignment
   "expected ';' or '=' after declaration %1",                                             //err_expected_semi_or_equal_declaration,
   "expected identifer after declaration %1",                                              //err_expect_identifer,
   "expected valid expression",                                                            //err_expected_expression,
-  "Init expression can't be used as brace initialiazer",                                  //err_braceinitialiazer_is_initexpr
+  "empty expression list between braces",                                                 //err_empty_brace_initialiazer
   "expectd digit after %1's dot",                                                         //err_illegal_float_dot_part,
   "array element size expression is null",                                                //err_invalid_array_element_size,
   "function parameter number isn't compatible with builtin function prototype",           //err_function_argument_num_unfit,

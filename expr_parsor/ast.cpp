@@ -4,8 +4,8 @@
 #include "builtinfn.h"
 #include "symbols.h"
 
-namespace mnb{
-namespace expr{
+namespace mnb {
+namespace expr {
 
 bool QualType::isIntegralPromotion(const QualType& toType) {
   // An rvalue of type char, signed char, unsigned char, short int, or
@@ -26,8 +26,7 @@ bool QualType::isIntegralPromotion(const QualType& toType) {
 }
 
 ExprResult QualType::createDefaultInit(IdentifierTable& table) {
-  switch(pType_->getKind() ) 
-  {
+  switch(pType_->getKind() ) {
   case kBoolTy:
     return ExprResult(new Constant(false,QualType(table.typeOf(Token::kw_BOOL) ) ) );
   case kFloatTy:
@@ -45,6 +44,11 @@ void QualType::setArraySize(const std::vector<ExprNode*>* pInitList) {
   int32_t newSize = pInitList->size();
   ExprNode* pSubInit = newSize ? (*pInitList)[0] : NULL;
   pArrayType->setArraySize(newSize, pSubInit); 
+}
+
+bool QualType::isSameQualType(const QualType& rhs) const {
+  return pType_->getKind() == rhs.pType_->getKind() 
+    && pType_->getTypeWidth() >= rhs.pType_->getTypeWidth();
 }
 
 void ConstArrayType::setArraySize(const int32_t newSize, const ExprNode* pSubInit) {
@@ -131,7 +135,7 @@ ExprValue BinaryOperatorExpr::visitDivOpExpr(){
   return lhsVal;
 }
 
-ExprValue BinaryOperatorExpr::visitRemOpExpr(){
+ExprValue BinaryOperatorExpr::visitRemOpExpr() {
   ExprValue lhsVal = lhs_.evaluate();
   const ExprValue& rhsVal = rhs_.evaluate();
   lhsVal = lhsVal.rem(rhsVal);
@@ -139,47 +143,47 @@ ExprValue BinaryOperatorExpr::visitRemOpExpr(){
   return lhsVal;
 }
 
-ExprValue BinaryOperatorExpr::visitShlOpExpr(){
+ExprValue BinaryOperatorExpr::visitShlOpExpr() {
   ExprValue lhsVal = lhs_.evaluate();
   ExprValue rhsVal = rhs_.evaluate();
   lhsVal = lhsVal.shl(rhsVal);
   success(lhsVal);
   return lhsVal;
 }
-ExprValue BinaryOperatorExpr::visitShrOpExpr(){
+ExprValue BinaryOperatorExpr::visitShrOpExpr() {
   ExprValue lhsVal = lhs_.evaluate();
   ExprValue rhsVal = rhs_.evaluate();
   lhsVal = lhsVal.shr(rhsVal);
   success(lhsVal);
   return lhsVal;
 }
-ExprValue BinaryOperatorExpr::visitAssignOpExpr(){
+ExprValue BinaryOperatorExpr::visitAssignOpExpr() {
   ExprValue rhsVal = rhs_.evaluate();
   success(rhsVal);
   return rhsVal;
 }
-ExprValue BinaryOperatorExpr::visitLEOpExpr(){
+ExprValue BinaryOperatorExpr::visitLEOpExpr() {
   ExprValue lhsVal = lhs_.evaluate();
   ExprValue rhsVal = rhs_.evaluate();
   lhsVal = lhsVal.le(rhsVal);
   success(lhsVal);
   return lhsVal;
 }
-ExprValue BinaryOperatorExpr::visitLTOpExpr(){
+ExprValue BinaryOperatorExpr::visitLTOpExpr() {
   ExprValue lhsVal = lhs_.evaluate();
   ExprValue rhsVal = rhs_.evaluate();
   lhsVal = lhsVal.lt(rhsVal);
   success(lhsVal);
   return lhsVal;
 }
-ExprValue BinaryOperatorExpr::visitGEOpExpr(){
+ExprValue BinaryOperatorExpr::visitGEOpExpr() {
   ExprValue lhsVal = lhs_.evaluate();
   ExprValue rhsVal = rhs_.evaluate();
   lhsVal = lhsVal.ge(rhsVal);
   success(lhsVal);
   return lhsVal;
 }
-ExprValue BinaryOperatorExpr::visitGTOpExpr(){
+ExprValue BinaryOperatorExpr::visitGTOpExpr() {
   ExprValue lhsVal = lhs_.evaluate();
   ExprValue rhsVal = rhs_.evaluate();
   lhsVal = lhsVal.gt(rhsVal);
@@ -314,7 +318,7 @@ ExprValue CastExpr::handleIntToFloatCast(const ExprValue& subValue) {
   return result;
 }
 
-ExprValue BuiltinCallExpr::evaluate(){
+ExprValue BuiltinCallExpr::evaluate() {
   return (*pFnDecl_)(arguments_);
 }
 
@@ -331,6 +335,7 @@ ExprValue UnaryOperatorExpr::evaluate(){
     default:
       assert(false);
   }
+  return res;
 }
 
 ExprValue ArraySubscriptExpr::evaluate() {
@@ -341,14 +346,12 @@ ExprValue ArraySubscriptExpr::evaluate() {
   //ExprNode* pSubExpr = exprNodeVec[idxValue.intVal.uintValue];
   //return pSubExpr->evaluate();
   const std::vector<ExprNode*>* pExprNodeVec = NULL;
-  if (baseExpr_->getExprClass() == kArraySubscriptExprClasss)
-  {
+  if (baseExpr_->getExprClass() == kArraySubscriptExprClasss) {
     ArraySubscriptExpr* pArrayExpr = dynamic_cast<ArraySubscriptExpr*>(baseExpr_);
     InitExprs* pSubExpr = pArrayExpr->getLowRankInitial();
     pExprNodeVec = pSubExpr->getInitExprVec();
   }
-  else if (baseExpr_->getExprClass() == kVarDeclClass)
-  {
+  else if (baseExpr_->getExprClass() == kVarDeclClass) {
     VarDecl* pSubVarDecl = dynamic_cast<VarDecl*>(baseExpr_);
     pExprNodeVec = pSubVarDecl->getInitExprVec();
   }
@@ -361,22 +364,37 @@ ExprValue ArraySubscriptExpr::evaluate() {
 }
 
 InitExprs* ArraySubscriptExpr::getLowRankInitial() {
-  if (baseExpr_->getExprClass() == kArraySubscriptExprClasss)
-  {
+  InitExprs* pSubInit = NULL;
+  if (baseExpr_->getExprClass() == kArraySubscriptExprClasss) {
      ArraySubscriptExpr* pArrayExpr = dynamic_cast<ArraySubscriptExpr*>(baseExpr_);
-     InitExprs* pSubInit = pArrayExpr->getLowRankInitial();
-     assert(pSubInit);
-     const std::vector<ExprNode*>* pExprNodeVec = pSubInit->getInitExprVec();
-     ExprValue idxValue = indexExpr_->evaluate();
-     assert(pExprNodeVec->size() > idxValue.intVal.uintValue);
-     ExprNode* pSubExpr = (*pExprNodeVec)[idxValue.intVal.uintValue];
-     return dynamic_cast<InitExprs*>(pSubExpr);
+     pSubInit = pArrayExpr->getLowRankInitial();
   }
-  else if (baseExpr_->getExprClass() == kVarDeclClass)
-  {
+  else if (baseExpr_->getExprClass() == kVarDeclClass) {
     VarDecl* pSubVarDecl = dynamic_cast<VarDecl*>(baseExpr_);
-    return pSubVarDecl->getInitVar();
+    pSubInit = pSubVarDecl->getInitVar();
   }
+  assert(pSubInit);
+  const std::vector<ExprNode*>* pExprNodeVec = pSubInit->getInitExprVec();
+  ExprValue idxValue = indexExpr_->evaluate();
+  assert(pExprNodeVec->size() > idxValue.intVal.uintValue);
+  ExprNode* pSubExpr = (*pExprNodeVec)[idxValue.intVal.uintValue];
+  return dynamic_cast<InitExprs*>(pSubExpr);
+}
+
+int VarDecl::setInitialier(const ExprResult& initialier) {
+  //different TypeKind can't be assigned 
+  if (getQualType().get()->getKind() != initialier.get()->getQualType().get()->getKind() ) {
+    return -1;
+  }
+  //allow no enough result type length for initialize for now
+  //if (getQualType().get()->getTypeWidth() < initialier.get()->getQualType().get()->getTypeWidth() ) {}
+  if (isArrayVar() ) {
+    InitExprs *pInitializer = dynamic_cast<InitExprs*>(initialier.get());
+    const std::vector<ExprNode*>* pExprList = pInitializer->getInitExprVec();
+    getQualType().setArraySize(pExprList); //recursive setarraysize with vec passed
+  }
+  pVarValue_ = initialier.move();//Constant with IntTy will be only assigned to IntTy
+  return 0;
 }
 
 ExprValue VarDecl::evaluate() {

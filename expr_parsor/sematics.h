@@ -67,12 +67,12 @@ class Sematic{
     ExprResult analyzeInitExprs(std::vector<ExprNode*>& initList);
     ExprResult analyzeIdentifier(const IdentifierInfo* pII);
     ExprResult analyzeConstantLiteral(Token* pToken);
-    void actOnUninitializedDecl(VarDecl* decl);
     ExprResult analyzeBinaryOperator(const Token::TokenTag opTokKind, ExprResult& lhs, ExprResult& rhs);
     ExprResult analyzeArraySubscript(ExprResult base, ExprResult idx);
     ExprResult analyzeUnaryOperator(Token::TokenTag Kind, ExprNode* InputExpr);
     ExprResult analyzeBuiltinCallExpr(ExprResult& fnLhs, ExprVector& args);
 
+    bool actOnUninitializedDecl(VarDecl* decl);
   private:
     ExprResult Owned(ExprNode* E);
 

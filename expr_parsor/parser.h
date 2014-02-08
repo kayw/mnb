@@ -11,8 +11,8 @@ class Parser{
   public:
   enum BinaryPreced{
     kUnknown      = 0,  // not binaray operator
-    kAssign       ,
     kComma        ,  // ,
+    kAssign       ,  // =
     kLogicalOR    ,  // OR ||
     kLogicalAND   ,  // AND &&
     kInclusiveOR  ,  // |
@@ -75,8 +75,9 @@ class Parser{
       return pLexer_->Diag(errid);
     }
 
-    void parseDeclarator();
+    bool parseDeclarator();
     void parseBracketDeclarator(Declarator& D);
+    ExprResult parsePrimaryExpression();
     ExprResult parseInitializer();
     ExprResult parseBraceInitialier();
     bool isDeclarationSpecifier();

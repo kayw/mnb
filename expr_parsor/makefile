@@ -1,5 +1,5 @@
-#CC = gcc
-CC = clang
+CC = gcc
+#CC = clang
 #CMDFLAG = -x c++
 #CXX = clang
 WARNING := -Wall -Wextra

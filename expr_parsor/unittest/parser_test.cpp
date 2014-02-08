@@ -60,6 +60,7 @@ Describe(ParserUnitTest) {
     er.setLineNo(2);
     bitwiseResult = p.ParseExpression("arr[3] >> 2");
     resVaule = bitwiseResult.evaluate();
+    //constant INT so the final result type promoted to signed
     Assert::That(resVaule.isEqual(ExprValue(/*false*/true, 1) ) );
 
     er.setLineNo(3);
@@ -81,23 +82,29 @@ Describe(ParserUnitTest) {
     er.setLineNo(1);
     ExprResult sincosResult = p.ParseExpression("REAL real = 100000.0789");
     er.setLineNo(2);
-    //sincosResult = p.ParseExpression("UDINT udi = real");//todo assignment type change
-    sincosResult = p.ParseExpression("UDINT udi = 200");
+    //assign different type in declaration specifier isn't allowed
+    sincosResult = p.ParseExpression("UDINT udi = real");
+    Assert::That(sincosResult.isInvalid() );
     er.setLineNo(3);
+    sincosResult = p.ParseExpression("UDINT udi = 200");
+    er.setLineNo(4);
     sincosResult = p.ParseExpression("SIN(real)*udi/COS(190) - SQRT(5) + LOG(3)*POW(2,2)");
     resVaule = sincosResult.evaluate();
     Assert::That(resVaule.isEqual(ExprValue(float(-125.89104353331878) ) ) );//input bit length larger float error bigger todo
   }
-  It(TwoDArrayParse) {//todo debug & verify
+  It(TwoDArrayParse) {
     ErrorReport er;
     Parser p(er);
     ExprResult dim2Result = p.ParseExpression("SINT si2a[][] = {{1,2,4}, {4,5,6}}");
+    //FIXME:
+    //array initialization {0}*n support
+    //check array declaration subscript larger than initializer's number : VarDecl::setInitialier
     er.setLineNo(2);
     dim2Result = p.ParseExpression("UDINT udi = si2a[0][2] * 10000 + 20");
     er.setLineNo(3);
     dim2Result = p.ParseExpression("udi");
     resVaule = dim2Result.evaluate();
-    Assert::That(resVaule.isEqual(ExprValue(true, 40020) ) );
+    Assert::That(resVaule.isEqual(ExprValue(false, 40020) ) );
   }
   ExprValue resVaule;
 };
