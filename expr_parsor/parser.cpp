@@ -3,6 +3,7 @@ namespace mnb {
 namespace expr {
 
 ExprResult Parser::ParseExpression(const std::string& exprStr) {
+  Er_.setLineNo(++lineNo_);
   Lexer l(exprStr.c_str(),symbol_table_, Er_);
   pLexer_ =  &l;
   sema_.setSemaDependency(pLexer_, symbol_table_);
@@ -116,10 +117,6 @@ ExprResult Parser::parseBraceInitialier() {
         break;
       }
     }
-    //else if (subElt->getExprClass() == ExprNode::kInitExprsClass) { 
-    //  Diag(diag::err_braceinitialiazer_is_initexpr);
-    //  break;
-    //}
     else {
       InitExprVec.push_back(subElt);
     }

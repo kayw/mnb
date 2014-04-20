@@ -7,7 +7,7 @@ namespace expr{
 static const char* ErrorMsg[] ={
   "shift count is negative", //warn_shift_negative
   "shift count >= width of type",                                                        //warn_shift_gt_typewidth,
-  "left shift result bits is %0, but %2 has only %3 bits",                                //warn_shift_result_gt_typewidth,
+  "left shift result bits is %0, but holding type %1 has only %2 bits",                                //warn_shift_result_gt_typewidth,
   "array index of '%0' indexes past the end of an array (that contains %1 elements)",     //warn_array_index_exceeds_bounds,
   "array index of '%0' indexes before the beginning of the array",                        //warn_array_index_precedes_bounds,
   "division by zero is undefined",                                                        //warn_division_by_zero,

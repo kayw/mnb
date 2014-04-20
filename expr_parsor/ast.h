@@ -72,10 +72,10 @@ class ExprValue {//todo move to cpp
       if(valueType != kIntTy)
         return 0;
       uint32_t tmp = 0;
-      for (int i = MAX_BITS; i >= 0 ; --i) {
-        tmp = intVal.uintValue&(~uint32_t(0UL) >> (MAX_BITS - i));
+      for (int i = MAX_BITS - 1; i >= 0 ; --i) {
+        tmp = (intVal.uintValue&(uint32_t(1UL) << i ) ) >> i;
         if(tmp == 1)
-          return i;
+          return i+1;
       }
       return 0;
     }
@@ -547,7 +547,7 @@ class ConstArrayType : public Type{
     virtual bool isFloatingType() const   { return elemBase_.get()->isFloatingType();}
     virtual bool isBooleanType() const    { return elemBase_.get()->isBooleanType();}
     virtual bool isArrayElement() const   { return true;}
-    virtual bool isSigned() const         { return false; }//todo
+    virtual bool isSigned() const         { return elemBase_.get()->isSigned(); }
 
     int32_t getArraySize() const { return arraySize_; }
     void setArraySize(const int32_t newSize, const ExprNode* pSubInit); 
@@ -593,7 +593,7 @@ class ExprNode{
     virtual ExprNode* getBase() const   { return NULL;    }
     virtual ExprNode* getIdx() const    { return NULL;    }
     virtual CastKind getCastKind() const { return kCastNoOp; }
-    QualType getQualType()const { return resultTy_;}
+    QualType getQualType()const { return resultTy_;} //todo: return underlying type.i.e array type is element base's QualType
     QualType getQualType() { return resultTy_;}
     void setResultType(const QualType& resultType){ resultTy_ = resultType; }
     bool isArrayVar() const     { return false;}
