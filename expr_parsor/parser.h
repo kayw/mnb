@@ -27,15 +27,16 @@ class Parser{
 //    kBuiltinCalls = 13, // sin
   };
 
-  explicit Parser(ErrorReport& reporter)
-    :Er_(reporter), lookahead_(NULL), pLexer_(NULL) {} 
+  Parser()
+    :lineNo_(0), Er_(), lookahead_(NULL), pLexer_(NULL) {} 
 
   ExprResult ParseExpression(const MString& exprStr);
 
 
   private:
     Sematic sema_;
-    ErrorReport& Er_;
+    int lineNo_;
+    ErrorReport Er_;
     Token* lookahead_;
     std::vector<Token*> cachedLookAheads_;
     IdentifierTable symbol_table_;

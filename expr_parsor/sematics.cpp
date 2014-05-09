@@ -193,23 +193,21 @@ QualType Sematic::checkAdditionSubtractOperands(ExprResult &lex, ExprResult &rex
 }
 
 QualType Sematic::checkShiftOperands(ExprResult &lex, ExprResult &rex, unsigned Opc) {
-  // C99 6.5.7p2: Each of the operands shall have integer type.
+  // Each of the operands shall have integer type.(following C99 6.5.7p2)
   if (!lex.get()->getQualType().isIntegerType() || 
       !rex.get()->getQualType().isIntegerType() )
     return invalidOperands(lex, rex);
 
-  //C99 6.5.7p3
   if (lex.isInvalid() )
     return QualType();
 
-  // The RHS is simpler.
   if (rex.isInvalid() )
     return QualType();
 
   // Sanity-check shift operands
   diagnoseBadShiftValues(lex, rex, Opc);
 
-  // "The type of the result is that of the promoted left operand."
+  // The type of the result is that of the promoted left operand.
   return arithmeticConversion(lex, rex);
 }
 
@@ -217,18 +215,6 @@ QualType Sematic::checkCompareOperands(ExprResult &lex, ExprResult &rex, bool is
   QualType lType = lex.get()->getQualType();
   QualType rType = rex.get()->getQualType();
 
-    // For non-floating point types, check for self-comparisons of the form
-    // x == x, x != x, x < x, etc.  These always evaluate to a constant, and
-    // often indicate logic errors in the program.
-    //
-    // NOTE: Don't warn about comparison expressions resulting from macro
-    // expansion. Also don't warn about comparisons which are only self
-    // comparisons within a template specialization. The warnings should catch
-    // obvious cases in the definition of the template anyways. The idea is to
-    // warn when the typed comparison operator will always evaluate to the same
-    // result.
-
-  // C99 6.5.8p3 / C99 6.5.9p4
   if (lex.get()->getQualType().isArithmeticType()
       && rex.get()->getQualType().isArithmeticType()
       && isRelational) {
@@ -248,7 +234,7 @@ QualType Sematic::checkCompareOperands(ExprResult &lex, ExprResult &rex, bool is
     arithIntegerCast(lex, rex);
   }
 
-  // The result of comparisons is 'bool' in C++, 'int' in C.
+  // The result of comparisons is 'bool' in C++, 'int' in C. (for refrence, here is BOOL type)
   QualType ResultTy = QualType(psymbol_table_->typeOf(Token::kw_BOOL) );
   return ResultTy;
 }
@@ -264,9 +250,7 @@ QualType Sematic::checkBitwiseOperands(ExprResult &lex, ExprResult &rex) {
   return invalidOperands(lex, rex);
 }
 
-// C99 6.5.[13,14]
 QualType Sematic::checkLogicalOperands(ExprResult &lex, ExprResult &rex) {
-  
   // Diagnose cases where the user write a logical and/or but probably meant a
   // bitwise one.  We do this when the LHS is a non-bool integer and the RHS
   // is a constant.
@@ -275,13 +259,6 @@ QualType Sematic::checkLogicalOperands(ExprResult &lex, ExprResult &rex) {
     return invalidOperands(lex, rex);
 
   return QualType(psymbol_table_->typeOf(Token::kw_BOOL));
-
-  // The following is safe because we only use this method for
-  // non-overloadable operands.
-
-  // C++ [expr.log.and]p1
-  // C++ [expr.log.or]p1
-  // The operands are both contextually converted to type bool.
 }
 
 QualType Sematic::checkAssignmentOperands(ExprNode* LHS, ExprResult &RHS) {
@@ -289,8 +266,7 @@ QualType Sematic::checkAssignmentOperands(ExprNode* LHS, ExprResult &RHS) {
   QualType LHSType = LHS->getQualType();//ptype null
   QualType RHSType = RHS.get()->getQualType();
 
-  // Get canonical types.  We're not formatting these types, just comparing
-  // them.
+  // just comparing types.
   // Common case: no conversion required.
   if (LHSType.isSameQualType(RHSType) ) {
     return LHSType;
@@ -410,12 +386,11 @@ void Sematic::diagnoseBadShiftValues(ExprResult &lex, ExprResult &rex, unsigned 
   if (Opc != kBOShl)
     return;
 
-  // When left shifting an ICE which is signed, we can check for overflow which
-  // according to C++ has undefined behavior ([expr.shift] 5.8/2). Unsigned
-  // integers have defined behavior modulo one more than the maximum value
-  // representable in the result type, so never warn for those.
+  // For the moment, ExprValue support the 32 bit operands' calculation, We don't pass type width for the ExprValue.
+  // So here we warn signed or unsigned integer shift operation result exceed the type width.
+  // In some stage we should cycle the bits in ExprValue.shl for the unsigned operand and stop calculate for the signed.
   QualType LHSTy = lex.get()->getQualType();
-  if (!LHSTy.isIntegerType() || !LHSTy.isSignedInteger())
+  if (!LHSTy.isIntegerType() )//|| !LHSTy.isSignedInteger() )
     return;
   ExprValue leftvalue = lex.get()->evaluate();
   int32_t resultBits = eval.intVal.uintValue + leftvalue.getValidBits();
@@ -652,7 +627,7 @@ CastKind Sematic::implicitCast(QualType& fromType, const QualType& toType) {
 OperatorKind Sematic::getBinaryOpcode(const Token::TokenTag Kind) {
   OperatorKind Opc;
   switch (Kind) {
-  default: assert(0 && "Unknown binop!");
+  default: assert(false && "Unknown binop!");
   case Token::star:                 Opc = kBOMul; break;
   case Token::slash:                Opc = kBODiv; break;
   case Token::percent:              Opc = kBORem; break;
