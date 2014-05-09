@@ -1,57 +1,19 @@
 #define  _USE_NATIVE_IMPL_STRING
 #include "mstring.h"
 
-#include <stdint.h>
+//#include <stdint.h>
 #include <ctype.h>
 #include <wctype.h>
 #include <limits>
+#include "MStringHelper.h"
 
 namespace mnb {
-
-
-// Utility to convert a character to a digit in a given base
-template<typename CHAR, int BASE, bool BASE_LTE_10> class BaseCharToDigit {
-};
-
-// Faster specialization for bases <= 10
-template<typename CHAR, int BASE> class BaseCharToDigit<CHAR, BASE, true> {
- public:
-  static bool Convert(CHAR c, uint8_t* digit) {
-    if (c >= '0' && c < '0' + BASE) {
-      *digit = c - '0';
-      return true;
-    }
-    return false;
-  }
-};
-
-// Specialization for bases where 10 < base <= 36
-template<typename CHAR, int BASE> class BaseCharToDigit<CHAR, BASE, false> {
- public:
-  static bool Convert(CHAR c, uint8_t* digit) {
-    if (c >= '0' && c <= '9') {
-      *digit = c - '0';
-    } else if (c >= 'a' && c < 'a' + BASE - 10) {
-      *digit = c - 'a' + 10;
-    } else if (c >= 'A' && c < 'A' + BASE - 10) {
-      *digit = c - 'A' + 10;
-    } else {
-      return false;
-    }
-    return true;
-  }
-};
-
-template<int BASE, typename CHAR> bool CharToDigit(CHAR c, uint8_t* digit) {
-  return BaseCharToDigit<CHAR, BASE, BASE <= 10>::Convert(c, digit);
-}
 
 // There is an IsWhitespace for wchars defined in string_util.h, but it is
 // locale independent, whereas the functions we are replacing were
 // locale-dependent. TBD what is desired, but for the moment let's not introduce
 // a change in behaviour.
-template<typename CHAR> class WhitespaceHelper {
-};
+template<typename CHAR> class WhitespaceHelper {};
 
 template<> class WhitespaceHelper<char> {
  public:
@@ -191,7 +153,7 @@ class IteratorRangeToNumber {
   };
 };
 
-template<typename ITERATOR, typename VALUE, int BASE>
+template<typename ITERATOR, typename VALUE, uint8_t BASE>
 class BaseIteratorToNumberTraits {
  public:
   typedef ITERATOR iterator_type;
@@ -202,11 +164,13 @@ class BaseIteratorToNumberTraits {
   static value_type max() {
     return std::numeric_limits<value_type>::max();
   }
-  static const int kBase = BASE;
+  static const uint8_t kBase = BASE;
 };
 
 //static 
 bool MString::toInteger(const StringRef& rString, int& val) {
+  //TODO support 2\8\16\36 radix base
+  //move kBase to parameter
   return IteratorRangeToNumber<BaseIteratorToNumberTraits<StringRef::const_iterator, int, 10> >
     ::Invoke(rString.begin(), rString.end(), val);
 }

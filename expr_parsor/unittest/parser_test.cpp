@@ -60,7 +60,7 @@ Describe(ParserUnitTest) {
     er.setLineNo(2);
     bitwiseResult = p.ParseExpression("arr[3] >> 2");
     resVaule = bitwiseResult.evaluate();
-    //constant INT so the final result type promoted to signed
+    //constant(2)'s type is INT so the final result type promoted to signed
     Assert::That(resVaule.isEqual(ExprValue(/*false*/true, 1) ) );
 
     er.setLineNo(3);
