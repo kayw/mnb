@@ -45,7 +45,7 @@ Describe(ParserUnitTest) {
     ExprResult bitwiseResult = p.ParseExpression("USINT arr[] = { 1, 2, 3, 4, 7, 20}");
     bitwiseResult = p.ParseExpression("arr[3] >> 2");
     resVaule = bitwiseResult.evaluate();
-    //constant's type is INT so the final result type promoted to signed
+    //constant(2)'s type is INT so the final result type promoted to signed
     Assert::That(resVaule.isEqual(ExprValue(/*false*/true, 1) ) );
 
     // warned about the bits limit, but still go on for result evaluatation
