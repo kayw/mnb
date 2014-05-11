@@ -70,7 +70,7 @@ Describe(ParserUnitTest) {
     //FIXME:
     //array initialization {0}*n support
     //check array declaration subscript larger than initializer's number : VarDecl::setInitialier
-    //figure out & refractor ast node type & success evaluate value
+    //figure out & refactor ast node type & success evaluate value
     dim2Result = p.ParseExpression("UDINT udi = si2a[0][2] * 10000 + 20");
     dim2Result = p.ParseExpression("udi");
     resVaule = dim2Result.evaluate();
