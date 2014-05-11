@@ -19,7 +19,7 @@ bool QualType::isIntegralPromotion(const QualType& toType) {
          // We can promote any unsigned integer type whose size is
          // less than int to an int.
          (//!isSignedIntegerType() &&
-          pType_->getTypeWidth() < toType.get()->getTypeWidth())) {
+          pType_->getTypeBits() < toType.get()->getTypeBits())) {
       return true;
     }
   return false;
@@ -48,7 +48,7 @@ void QualType::setArraySize(const std::vector<ExprNode*>* pInitList) {
 
 bool QualType::isSameQualType(const QualType& rhs) const {
   return pType_->getKind() == rhs.pType_->getKind() 
-    && pType_->getTypeWidth() >= rhs.pType_->getTypeWidth();
+    && pType_->getTypeBits() >= rhs.pType_->getTypeBits();
 }
 
 void ConstArrayType::setArraySize(const int32_t newSize, const ExprNode* pSubInit) {
@@ -281,7 +281,7 @@ ExprValue CastExpr::handleIntToIntCast(const ExprValue& subValue) {
   ExprValue result;
   result.valueType = kIntTy;
   result.intVal.uintValue = subValue.intVal.uintValue;
-  result.truncToWidth(getQualType().getTypeWidth() );
+  result.truncToWidth(getQualType().getTypeBits() );
   result.intVal.isSigned = getQualType().isSignedInteger();
   return result;
 }
@@ -339,12 +339,6 @@ ExprValue UnaryOperatorExpr::evaluate(){
 }
 
 ExprValue ArraySubscriptExpr::evaluate() {
-  //const std::vector<ExprValue>& evv = baseExpr_->getInitValueList();
-  //const std::vector<ExprNode*>& exprNodeVec = baseExpr_->getInitExprVec();
-  //ExprValue idxValue = indexExpr_->evaluate();
-  //assert(exprNodeVec.size() > idxValue.intVal.uintValue);
-  //ExprNode* pSubExpr = exprNodeVec[idxValue.intVal.uintValue];
-  //return pSubExpr->evaluate();
   const std::vector<ExprNode*>* pExprNodeVec = NULL;
   if (baseExpr_->getExprClass() == kArraySubscriptExprClasss) {
     ArraySubscriptExpr* pArrayExpr = dynamic_cast<ArraySubscriptExpr*>(baseExpr_);
@@ -386,8 +380,8 @@ int VarDecl::setInitialier(const ExprResult& initialier) {
   if (getQualType().get()->getKind() != initialier.get()->getQualType().get()->getKind() ) {
     return -1;
   }
-  //allow no enough result type length for initialize for now
-  //if (getQualType().get()->getTypeWidth() < initialier.get()->getQualType().get()->getTypeWidth() ) {}
+  //allow no enough result type length for initialization for the moment
+  //if (getQualType().get()->getTypeBits() < initialier.get()->getQualType().get()->getTypeBits() ) {}
   if (isArrayVar() ) {
     InitExprs *pInitializer = dynamic_cast<InitExprs*>(initialier.get());
     const std::vector<ExprNode*>* pExprList = pInitializer->getInitExprVec();

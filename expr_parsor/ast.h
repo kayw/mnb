@@ -1,474 +1,22 @@
 #ifndef AST_H_199850DF_581D_4723_BCBF_33E06EE91387
 #define AST_H_199850DF_581D_4723_BCBF_33E06EE91387
 
-#include <math.h>
 #include <map>
 #include <vector>
-#include <limits>
+#include <limits.h>
 #include "mmacros.h"
 #include "mstring.h"
+#include "expr_value.h"
+
 namespace mnb {
 namespace expr {
-#define MAX_BITS 32
-enum TyKinds{
-  kVoidTy,  kBoolTy,
-  kIntTy,   kFloatTy,
-};
+
 class IdentifierTable;
-
-class ExprValue {//todo move to cpp
-  public:
-    ExprValue()
-      :evaluatable(false)
-      ,valueType(kVoidTy){}
-    explicit ExprValue(bool isSigned, uint32_t v)
-      :evaluatable(false), valueType(kIntTy) {
-        intVal.isSigned= isSigned;
-        intVal.uintValue = v;
-      } 
-    explicit ExprValue(float f)
-      :evaluatable(false), valueType(kFloatTy), floatVal(f) {} 
-    explicit ExprValue(bool b)
-      :evaluatable(false), valueType(kBoolTy), boolVal(b) {}
-
-    bool isEqual(const ExprValue& rhs) const {
-      if (valueType != rhs.valueType)
-      {
-        return false;
-      }
-      switch (valueType) {
-        case kIntTy:
-          return ((intVal.isSigned == rhs.intVal.isSigned) && (intVal.uintValue == rhs.intVal.uintValue));
-        case kBoolTy:
-          return boolVal == rhs.boolVal;
-        case kFloatTy:
-          return fabs(floatVal - rhs.floatVal) <= std::numeric_limits<float>::epsilon();
-        default:
-          return true;
-      }
-    }
-    bool isZero() const{
-      if (valueType == kIntTy) {
-        return intVal.uintValue == 0;
-      }
-      //else if (valueType == kFloatTy) {
-      //  return floatVal <= std::numeric_limits<>;
-      //}
-      else {
-        return false;
-      }
-    }
-    bool isNegative() const {
-      if (valueType == kIntTy) {
-        return intVal.isSigned && (static_cast<int32_t>(intVal.uintValue) < 0);
-      //} else if (valueType == kFloatTy) {
-      //  return floatVal < 0;
-      } else{
-        assert(false && "Value type must be INT");
-        return false;
-      }
-    }
-    int32_t getValidBits() const{
-      if(valueType != kIntTy)
-        return 0;
-      uint32_t tmp = 0;
-      for (int i = MAX_BITS - 1; i >= 0 ; --i) {
-        tmp = (intVal.uintValue&(uint32_t(1UL) << i ) ) >> i;
-        if(tmp == 1)
-          return i+1;
-      }
-      return 0;
-    }
-      
-    bool isTrue() const {//todo
-        return true;
-    }
-    void truncToWidth(int width) {
-      if (valueType != kIntTy)
-        return;
-      if (width > MAX_BITS)
-        width = MAX_BITS;
-      intVal.uintValue &= ~uint32_t(0UL) >> (MAX_BITS - width);
-    }
-
-    //UnaryOperator
-    ExprValue makeNegative() const{
-      assert((valueType != kBoolTy) && "unary minus operator is not suitable for BOOL" );
-      ExprValue ret;
-      if (valueType == kFloatTy){
-        ret.valueType = kFloatTy;
-        ret.floatVal = -floatVal;
-      }
-      else if(valueType == kIntTy){
-        ret.valueType = kIntTy;
-        ret.intVal.isSigned = true;
-        ret.intVal.uintValue = -intVal.uintValue;
-      }
-      return ret;
-    }
-    ExprValue makeLogicalNot() const{
-      assert((valueType == kBoolTy) && "logical Not operator is only for BOOL" );
-      ExprValue ret;
-      ret.valueType = kBoolTy;
-      ret.boolVal = !boolVal;
-      return ret;
-    }
-    ExprValue multiply(const ExprValue& Rhs) const { //unsigned cast signed
-      assert((valueType == Rhs.valueType ) && "value type mismatch!" );
-      assert((valueType != kBoolTy) && "multiplication operator is not suitable for BOOL" );
-      ExprValue ev;
-      if (valueType == kFloatTy && Rhs.valueType == kFloatTy ){
-        ev.valueType = kFloatTy;
-        ev.floatVal = floatVal * Rhs.floatVal;
-      //} else if (valueType == kFloatTy){
-      //  ev.valueType = kFloatTy;
-      //  ev.floatVal = floatVal * Rhs.intVal;
-      //} else if (Rhs.valueType == kFloatTy){
-      //  ev.valueType = kFloatTy;
-      //  ev.floatVal = intVal * Rhs.floatVal;
-      } else {
-        ev.valueType = kIntTy;
-        assert((intVal.isSigned == Rhs.intVal.isSigned) && "signed mismatch");
-        ev.intVal.isSigned = intVal.isSigned;
-        ev.intVal.uintValue = intVal.uintValue * Rhs.intVal.uintValue;
-      }
-      return ev;
-    }
-
-    ExprValue add(const ExprValue& Rhs) const {
-      assert((valueType == Rhs.valueType ) && "value type mismatch!" );
-      assert((valueType != kBoolTy) && (Rhs.valueType != kBoolTy) && "addition operator is not suitable for BOOL" );
-      ExprValue ev;
-      if (valueType == kFloatTy && Rhs.valueType == kFloatTy ){
-        ev.valueType = kFloatTy;
-        ev.floatVal = floatVal + Rhs.floatVal;
-      //} else if (valueType == kFloatTy){
-      //  ev.valueType = kFloatTy;
-      //  ev.floatVal = floatVal + Rhs.intVal;
-      //} else if (Rhs.valueType == kFloatTy){
-      //  ev.valueType = kFloatTy;
-      //  ev.floatVal = intVal + Rhs.floatVal;
-      } else {
-        ev.valueType = kIntTy;
-        assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-        ev.intVal.isSigned = intVal.isSigned;
-        ev.intVal.uintValue = intVal.uintValue + Rhs.intVal.uintValue;
-      }
-      return ev;
-    }
-
-    ExprValue subtract(const ExprValue& Rhs) const {
-      assert((valueType != kBoolTy) && (Rhs.valueType != kBoolTy) && "subtraction operator is not suitable for bool");
-      ExprValue ev;
-      if (valueType == kFloatTy && Rhs.valueType == kFloatTy ){
-        ev.valueType = kFloatTy;
-        ev.floatVal = floatVal - Rhs.floatVal;
-      //} else if (valueType == kFloatTy){
-      //  ev.valueType = kFloatTy;
-      //  ev.floatVal = floatVal - Rhs.intVal;
-      //} else if (Rhs.valueType == kFloatTy){
-      //  ev.valueType = kFloatTy;
-      //  ev.floatVal = intVal - Rhs.floatVal;
-      } else {
-        ev.valueType = kIntTy;
-        assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-        ev.intVal.isSigned = intVal.isSigned;
-        ev.intVal.uintValue = intVal.uintValue - Rhs.intVal.uintValue;
-      }
-      return ev;
-    }
-    ExprValue div(const ExprValue& Rhs) const {
-      assert((valueType != kBoolTy) && (Rhs.valueType != kBoolTy) && "divide operator is not suitable for bool" );
-      ExprValue ev;
-      if (valueType == kFloatTy){
-        ev.valueType = kFloatTy;
-        ev.floatVal = floatVal / Rhs.floatVal;
-      //} else if (valueType == kFloatTy){
-      //  ev.valueType = kFloatTy;
-      //  ev.floatVal = floatVal / Rhs.intVal;
-      //} else if (Rhs.valueType == kFloatTy){
-      //  ev.valueType = kFloatTy;
-      //  ev.floatVal = intVal / Rhs.floatVal;
-      } else {
-        ev.valueType = kIntTy;
-        assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-        ev.intVal.isSigned = intVal.isSigned;
-        ev.intVal.uintValue = intVal.isSigned ? sDiv(Rhs) : uDiv(Rhs);//intVal / Rhs.intVal;
-      }
-      return ev;
-    }
-    uint32_t sDiv(const ExprValue& Rhs) const {
-      assert((Rhs.intVal.uintValue != 0) && "divide by zero?");
-      return uint32_t(static_cast<int32_t>(intVal.uintValue) / static_cast<int32_t>(Rhs.intVal.uintValue) );
-    }
-    uint32_t uDiv(const ExprValue& Rhs) const {
-      assert((Rhs.intVal.uintValue != 0) && "divide by zero?");
-      return intVal.uintValue / Rhs.intVal.uintValue;
-    }
-
-    ExprValue rem(const ExprValue& rhs) const {
-      assert((valueType == kIntTy) && (rhs.valueType == kIntTy) && "remainder operator is not suitable for bool" );
-      ExprValue ev;
-      ev.valueType = kIntTy;
-      assert((intVal.isSigned == rhs.intVal.isSigned) && "signedness mismatch");
-      ev.intVal.isSigned = intVal.isSigned;
-      ev.intVal.uintValue = intVal.isSigned ? sRem(rhs) : uRem(rhs);
-      return ev;
-    }
-
-    uint32_t sRem(const ExprValue& Rhs) const {
-      assert((Rhs.intVal.uintValue != 0) && "remainder by zero?");
-      return uint32_t(static_cast<int32_t>(intVal.uintValue)%static_cast<int32_t>(Rhs.intVal.uintValue) );
-    }
-
-    uint32_t uRem(const ExprValue& Rhs) const {
-      assert((Rhs.intVal.uintValue != 0) && "remainder by zero?");
-      return intVal.uintValue % Rhs.intVal.uintValue;
-    }
-
-    ExprValue shr(const ExprValue& Rhs) const{
-      assert((valueType == kIntTy) && (Rhs.valueType == kIntTy) && "right shift operator is only suitable for INT" );
-      assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-      assert((!isNegative() && !Rhs.isNegative() ) && "right shift operands must be greater than or equal to 0");
-      ExprValue ev;
-      ev.valueType = kIntTy;
-      uint32_t shiftBits = Rhs.intVal.uintValue;
-      if (shiftBits >= MAX_BITS){
-        ev.intVal.uintValue = 0xFFFFFFFF;
-      } else {
-        ev.intVal.isSigned = intVal.isSigned;
-        ev.intVal.uintValue = intVal.uintValue >> shiftBits;
-      }
-      return ev;
-    }
-
-    ExprValue shl(const ExprValue& Rhs) const{
-      assert((valueType == kIntTy) && (Rhs.valueType == kIntTy) && "left shift operator is only suitable for INT" );
-      assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-      assert((!isNegative() && !Rhs.isNegative() ) && "left shift operands must be greater than or equal to 0");
-      ExprValue ev;
-      ev.valueType = kIntTy;
-      uint32_t shiftBits = Rhs.intVal.uintValue;
-      if (shiftBits >= MAX_BITS) {
-        ev.intVal.uintValue = 0;
-      } else {
-        ev.intVal.isSigned = intVal.isSigned;
-        ev.intVal.uintValue = intVal.uintValue << shiftBits;
-      }
-      return ev;
-    }
-
-    ExprValue gt(const ExprValue& Rhs) const{
-      assert((valueType != kBoolTy) && (Rhs.valueType != kBoolTy) && "greater than operator is not suitable for BOOL" );
-      ExprValue ev;
-      ev.valueType = kBoolTy;
-      if (valueType == kFloatTy && Rhs.valueType == kFloatTy ){
-        ev.boolVal = floatVal > Rhs.floatVal;
-      //} else if (valueType == kFloatTy){
-      //  ev.boolVal = floatVal > Rhs.intVal;
-      //} else if (Rhs.valueType == kFloatTy){
-      //  ev.boolVal = intVal > Rhs.floatVal;
-      } else {
-        assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-        ev.boolVal = intVal.isSigned ? sGt(Rhs) : uGt(Rhs);
-      }
-      return ev;
-    }
-    bool sGt(const ExprValue& Rhs) const {
-      return static_cast<int32_t>(intVal.uintValue) > static_cast<int32_t>(Rhs.intVal.uintValue);
-    }
-    bool uGt(const ExprValue& Rhs) const {
-      return intVal.uintValue > Rhs.intVal.uintValue;
-    }
-
-    ExprValue ge(const ExprValue& Rhs) const{
-      assert((valueType != kBoolTy) && (Rhs.valueType != kBoolTy) && "greater than or equal to operator is not suitable for BOOL" );
-      ExprValue ev;
-      ev.valueType = kBoolTy;
-      if (valueType == kFloatTy && Rhs.valueType == kFloatTy ){
-        ev.boolVal = (floatVal > Rhs.floatVal) || fabs(floatVal - Rhs.floatVal) < std::numeric_limits<float>::epsilon();
-      //} else if (valueType == kFloatTy){
-      //  ev.boolVal = floatVal >= Rhs.intVal;
-      //} else if (Rhs.valueType == kFloatTy){
-      //  ev.boolVal = intVal >= Rhs.floatVal;
-      } else {
-        assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-        ev.boolVal = intVal.isSigned ? sGe(Rhs) : uGe(Rhs);
-      }
-      return ev;
-    }
-    bool sGe(const ExprValue& Rhs) const {
-      return static_cast<int32_t>(intVal.uintValue) >= static_cast<int32_t>(Rhs.intVal.uintValue);
-    }
-    bool uGe(const ExprValue& Rhs) const {
-      return intVal.uintValue >= Rhs.intVal.uintValue;
-    }
-
-    ExprValue lt(const ExprValue& Rhs) const{
-      assert((valueType != kBoolTy) && (Rhs.valueType != kBoolTy) && "less than operator is not suitable for BOOL" );
-      ExprValue ev;
-      ev.valueType = kBoolTy;
-      if (valueType == kFloatTy && Rhs.valueType == kFloatTy ){
-        ev.boolVal = floatVal < Rhs.floatVal;
-      //} else if (valueType == kFloatTy){
-      //  ev.boolVal = floatVal < Rhs.intVal;
-      //} else if (Rhs.valueType == kFloatTy){
-      //  ev.boolVal = intVal < Rhs.floatVal;
-      } else {
-        assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-        ev.boolVal = intVal.isSigned ? sLt(Rhs) : uLt(Rhs);
-      }
-      return ev;
-    }
-    bool sLt(const ExprValue& Rhs) const {
-      return static_cast<int32_t>(intVal.uintValue) < static_cast<int32_t>(Rhs.intVal.uintValue);
-    }
-    bool uLt(const ExprValue& Rhs) const {
-      return intVal.uintValue < Rhs.intVal.uintValue;
-    }
-
-    ExprValue le(const ExprValue& Rhs) const{
-      assert((valueType != kBoolTy) && (Rhs.valueType != kBoolTy) && "less than or equal to operator is not suitable for BOOL" );
-      ExprValue ev;
-      ev.valueType = kBoolTy;
-      if (valueType == kFloatTy && Rhs.valueType == kFloatTy ){
-        ev.boolVal = floatVal < Rhs.floatVal || fabs(floatVal - Rhs.floatVal) <= std::numeric_limits<float>::epsilon();
-      //} else if (valueType == kFloatTy){
-      //  ev.boolVal = floatVal <= Rhs.intVal;
-      //} else if (Rhs.valueType == kFloatTy){
-      //  ev.boolVal = intVal <= Rhs.floatVal;
-      } else {
-        assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-        ev.boolVal = intVal.isSigned ? sLe(Rhs) : uLe(Rhs);
-      }
-      return ev;
-    }
-    bool sLe(const ExprValue& Rhs) const {
-      return static_cast<int32_t>(intVal.uintValue) <= static_cast<int32_t>(Rhs.intVal.uintValue);
-    }
-    bool uLe(const ExprValue& Rhs) const {
-      return intVal.uintValue <= Rhs.intVal.uintValue;
-    }
-
-    ExprValue neq(const ExprValue& Rhs) const{
-      assert((valueType != kFloatTy) && (Rhs.valueType != kFloatTy) && "not equal to operator is not suitable for FLOAT");
-      assert((valueType == Rhs.valueType) && "unequal operand type must be same");
-      ExprValue ev;
-      ev.valueType = kBoolTy;
-      if (valueType == kIntTy){
-        assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-        ev.boolVal = intVal.uintValue != Rhs.intVal.uintValue;
-      } else {
-        ev.boolVal = boolVal != Rhs.boolVal;
-      }
-      return ev;
-    }
-
-    ExprValue equal(const ExprValue& Rhs) const{
-      assert((valueType != kFloatTy) && (Rhs.valueType != kFloatTy) && "equal to operator is not suitable for FLOAT" );
-      assert((valueType == Rhs.valueType) && "equal operand type must be same");
-      ExprValue ev;
-      ev.valueType = kBoolTy;
-      if (valueType == kIntTy){
-        assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-        ev.boolVal = intVal.uintValue == Rhs.intVal.uintValue;
-      } else {
-        ev.boolVal = boolVal == Rhs.boolVal;
-      }
-      return ev;
-    }
-
-    ExprValue bitAnd(const ExprValue& Rhs) const{ //todo not overloading operator this prevent forward declaration use a function
-      assert((valueType == kIntTy) && (Rhs.valueType == kIntTy) && "bitwise AND operator is only suitable for INT" );
-      assert((!isNegative() && !Rhs.isNegative() ) && "bitwise AND operand must be greater than or equal to 0");
-      ExprValue ev;
-      ev.valueType = kIntTy;
-      assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-      ev.intVal.uintValue = intVal.uintValue & Rhs.intVal.uintValue;
-      return ev;
-    }
-
-    ExprValue bitXor(const ExprValue& Rhs) const{
-      assert((valueType == kIntTy) && (Rhs.valueType == kIntTy) && "bitwise XOR operator is only suitable for INT" );
-      //assert((Rhs.intVal.uintValue >= 0) && (intVal.uintValue >= 0) && "bitwise XOR operands must be greater than or equal to 0");
-      ExprValue ev;
-      ev.valueType = kIntTy;
-      assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-      ev.intVal.uintValue = intVal.uintValue ^ Rhs.intVal.uintValue;
-      return ev;
-    }
-
-    ExprValue bitOr(const ExprValue& Rhs) const {
-      assert((valueType == kIntTy) && (Rhs.valueType == kIntTy) && "bitwise OR operator is only suitable for INT" );
-      //assert((Rhs.intVal.uintValue >= 0) && (intVal.uintValue >= 0) && "bitwise OR operand must be greater than or equal to 0");
-      ExprValue ev;
-      ev.valueType = kIntTy;
-      assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-      ev.intVal.uintValue = intVal.uintValue | Rhs.intVal.uintValue;
-      return ev;
-    }
-
-    ExprValue logicalAnd(const ExprValue& Rhs) const {
-      assert((valueType != kFloatTy) && (Rhs.valueType != kFloatTy) && "logical AND operator is not suitable for FLOAT" );
-      assert((valueType == Rhs.valueType) && "logical AND operands type must be same");
-      ExprValue ev;
-      ev.valueType = kBoolTy;
-      if (valueType == kIntTy) {
-        assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-        ev.boolVal = (intVal.uintValue && Rhs.intVal.uintValue);
-      } else {
-        ev.boolVal = (boolVal && Rhs.boolVal);
-      }
-      return ev;
-    }
-
-    ExprValue logicalOr(const ExprValue& Rhs) const {
-      assert((valueType != kFloatTy) && (Rhs.valueType != kFloatTy) && "logical OR operator is not suitable for FLOAT" );
-      assert((valueType == Rhs.valueType) && "logical OR operands type must be same");
-      ExprValue ev;
-      ev.valueType = kBoolTy;
-      if (valueType == kIntTy) {
-        assert((intVal.isSigned == Rhs.intVal.isSigned) && "signedness mismatch");
-        ev.boolVal = (intVal.uintValue || Rhs.intVal.uintValue);
-      } else {
-        ev.boolVal = (boolVal || Rhs.boolVal);
-      }
-      return ev;
-    }
-
-  private:
-    struct IntTy {
-      bool isSigned;
-      uint32_t uintValue;
-    };
-    bool evaluatable;
-    TyKinds valueType;
-    union {
-      bool boolVal;
-      IntTy intVal;
-      float floatVal;
-    };
-    friend class FDSin;
-    friend class FDCos;
-    friend class FDTg;
-    friend class FDCtg;
-    friend class FDLog;
-    friend class FDPow;
-    friend class FDMax;
-    friend class FDMin;
-    friend class FDAbs;
-    friend class FDSqrt;
-    friend class ExprNode;
-    friend class Constant;
-    friend class CastExpr;
-    friend class ArraySubscriptExpr;
-    friend class Sematic;
-};
 
 struct Type {
   virtual MString getTypeLiteral() const = 0;
   virtual TyKinds getKind() const       = 0;
-  virtual uint32_t getTypeWidth() const = 0;
+  virtual uint32_t getTypeBits() const = 0;
   virtual bool isIntegerType() const    = 0;
   virtual bool isFloatingType() const   = 0;
   virtual bool isBooleanType() const    = 0;
@@ -488,7 +36,7 @@ class DeclType : public Type {
     virtual ~DeclType(){}
     virtual MString getTypeLiteral() const { return typeLiteral_; }
     virtual TyKinds getKind() const       { return typeKind_; }
-    virtual uint32_t getTypeWidth() const { return typeWidth_*sizeof(char)*8U; } //FIXME : rename to mean bits
+    virtual uint32_t getTypeBits() const { return typeWidth_*sizeof(char)*CHAR_BIT; }
     virtual bool isIntegerType() const    { return typeKind_ == kIntTy;   }
     virtual bool isBooleanType() const    { return typeKind_ == kBoolTy;  }
     virtual bool isFloatingType() const   { return typeKind_ == kFloatTy; }
@@ -518,7 +66,7 @@ class QualType {
 
     bool isIntegerType() const { return pType_->isIntegerType(); }
     bool isSignedInteger() const  { return pType_->isSigned();  }
-    uint32_t getTypeWidth() const { return pType_->getTypeWidth(); }
+    uint32_t getTypeBits() const { return pType_->getTypeBits(); }
 
     bool isArithmeticType(){
       return pType_->isIntegerType() || pType_->isFloatingType();
@@ -542,7 +90,7 @@ class ConstArrayType : public Type{
     virtual ~ConstArrayType() {}
     virtual MString getTypeLiteral() const;
     virtual TyKinds getKind() const { return elemBase_.get()->getKind(); }
-    virtual uint32_t getTypeWidth() const { return elemBase_.get()->getTypeWidth();}
+    virtual uint32_t getTypeBits() const { return elemBase_.get()->getTypeBits();}
     virtual bool isIntegerType() const    { return elemBase_.get()->isIntegerType();}
     virtual bool isFloatingType() const   { return elemBase_.get()->isFloatingType();}
     virtual bool isBooleanType() const    { return elemBase_.get()->isBooleanType();}
@@ -568,7 +116,6 @@ enum CastKind { //todo
 
 class ExprNode{
   public:
-
     enum StmtClass{
       kBinaryOperaotrExprClass,
       kCastExprClass,
@@ -600,18 +147,13 @@ class ExprNode{
     bool isConstantZero() const { return false; }
     StmtClass getExprClass() const { return static_cast<StmtClass>(exprClass_); }
     void success(ExprValue& resultVal);
-    virtual std::vector<ExprValue> getInitValueList() { //todo
-      std::vector<ExprValue> m;
-      m.clear();
-      return m;
-    }
   private:
     QualType resultTy_;
     uint16_t exprClass_;
     DISALLOW_COPY_AND_ASSIGN(ExprNode);
 };
 
-class ExprResult{
+class ExprResult{ //todo remove this unneed wrapper
   public:
     explicit ExprResult(ExprNode* ptr)
       :ptrTy_(ptr)
@@ -792,13 +334,6 @@ class InitExprs: public ExprNode {
   public:
     explicit InitExprs(QualType T, std::vector<ExprNode*>& initExprNodes)
       :ExprNode(T, kInitExprsClass), initNodes_(initExprNodes) {}
-    virtual std::vector<ExprValue> getInitValueList() {
-      std::vector<ExprValue> exprValVec;
-      std::vector<ExprNode*>::iterator it = initNodes_.begin();
-      for(; it != initNodes_.end(); ++it)
-        exprValVec.push_back((*it)->evaluate() );
-      return exprValVec;
-    }
     const std::vector<ExprNode*>* getInitExprVec() const { return &initNodes_; }
 
   private:

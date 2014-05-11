@@ -313,8 +313,8 @@ QualType Sematic::checkAssignmentOperands(ExprNode* LHS, ExprResult &RHS) {
 }
 
 int Sematic::getIntegerTypeRank(const QualType& lhsTy, const QualType& rhsTy) {
-  int lhsIntWidth = lhsTy.getTypeWidth();
-  int rhsIntWidth = rhsTy.getTypeWidth();
+  int lhsIntWidth = lhsTy.getTypeBits();
+  int rhsIntWidth = rhsTy.getTypeBits();
   bool lhsSigned = lhsTy.isSignedInteger();
   bool rhsSigned = rhsTy.isSignedInteger();
   if (lhsSigned == rhsSigned) {
@@ -378,7 +378,7 @@ void Sematic::diagnoseBadShiftValues(ExprResult &lex, ExprResult &rex, unsigned 
   }
   //llvm::APInt LeftBits(Right.getBitWidth(),
   //                     S.Context.getTypeSize(lex.get()->getType()));
-  int32_t leftbits = lex.get()->getQualType().get()->getTypeWidth();
+  int32_t leftbits = lex.get()->getQualType().get()->getTypeBits();
   if (static_cast<int32_t>(eval.intVal.uintValue) > leftbits){//Right.uge(LeftBits)) {
     Diag(diag::warn_shift_gt_typewidth);
     return;
